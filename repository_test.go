@@ -65,7 +65,7 @@ func truncateTables(t *testing.T, db *sql.DB) {
 	}
 }
 
-func insertBatch(t *testing.T, db *sql.DB, reference Reference, sku Sku, quantity int) {
+func insertBatch(t *testing.T, db *sql.DB, reference Reference, sku Sku, quantity int, eta time.Time) {
 	t.Helper()
 	if _, err := db.Exec("INSERT INTO batches VALUES (?,?,?,?)", reference, sku, quantity, time.Now().AddDate(1, 5, 0)); err != nil {
 		t.Fatalf("could not seed the db with batches: %s", err)
@@ -96,6 +96,7 @@ func TestSQLRepository_AddBatch(t *testing.T) {
 			"batch-001",
 			"SMALL-TABLE",
 			10,
+			time.Time{},
 		)
 
 		repo := SQLRepository{
@@ -106,7 +107,7 @@ func TestSQLRepository_AddBatch(t *testing.T) {
 
 		createdBatch := Batch{}
 		row := db.QueryRow(`SELECT reference, sku, quantity, eta FROM "batches" WHERE reference=?`, batch.reference)
-		err = row.Scan(&createdBatch.reference, &createdBatch.sku, &createdBatch.quantity, &createdBatch.ETA)
+		err = row.Scan(&createdBatch.reference, &createdBatch.sku, &createdBatch.quantity, &createdBatch.eta)
 		assert.Nil(t, err)
 
 		assert.EqualExportedValues(t, batch, createdBatch)
@@ -128,9 +129,9 @@ func TestSQLRepository_GetBatch(t *testing.T) {
 			reference: "batch-002",
 			sku:       "LARGE-MIRROR",
 			quantity:  23,
-			ETA:       time.Now().AddDate(0, 3, 0),
+			eta:       time.Now().AddDate(0, 3, 0),
 		}
-		db.Exec(insertBatchRow, existingBatch.reference, existingBatch.sku, existingBatch.quantity, existingBatch.ETA)
+		db.Exec(insertBatchRow, existingBatch.reference, existingBatch.sku, existingBatch.quantity, existingBatch.eta)
 
 		receivedBatch, err := repo.GetBatch(existingBatch.reference)
 
@@ -149,7 +150,7 @@ func TestSQLRepository_GetBatch(t *testing.T) {
 		orderId := Reference("order-012")
 		sku := Sku("LARGE-MIRROR")
 
-		insertBatch(t, db, batchRef, sku, 50)
+		insertBatch(t, db, batchRef, sku, 50, time.Time{})
 		insertOrderLine(t, db, orderId, sku, 3)
 		insertAllocation(t, db, batchRef, orderId)
 
@@ -176,9 +177,9 @@ func TestSQLRepository_ListBatch(t *testing.T) {
 
 	sku := Sku("BIG-STICKER")
 
-	insertBatch(t, db, "batch-007", sku, 50)
-	insertBatch(t, db, "batch-001", sku, 20)
-	insertBatch(t, db, "batch-002", sku, 10)
+	insertBatch(t, db, "batch-007", sku, 50, time.Time{})
+	insertBatch(t, db, "batch-001", sku, 20, time.Time{})
+	insertBatch(t, db, "batch-002", sku, 10, time.Time{})
 
 	repo := SQLRepository{
 		db: db,

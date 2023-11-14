@@ -2,6 +2,7 @@ package cosmicpythongo
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -14,11 +15,11 @@ type Batch struct {
 	reference   Reference
 	sku         Sku
 	quantity    int
-	ETA         time.Time
+	eta         time.Time
 	allocations mapset.Set[OrderLine]
 }
 
-func NewBatch(reference Reference, sku Sku, Quantity int) Batch {
+func NewBatch(reference Reference, sku Sku, Quantity int, eta time.Time) Batch {
 	return Batch{
 		reference:   reference,
 		sku:         sku,
@@ -83,4 +84,26 @@ func (b *Batch) AllocatedQuantity() int {
 // IsAllocated checks if an order line has been allocated to the batch
 func (b *Batch) IsAllocated(orderLine OrderLine) bool {
 	return b.allocations.Contains(orderLine)
+}
+
+func Allocate(orderLine OrderLine, batches []Batch) (Reference, error) {
+	slices.SortFunc[[]Batch](batches, func(aBatch, bBatch Batch) int {
+		return aBatch.eta.Compare(bBatch.eta)
+	})
+	var batchCheckError error
+	for _, batch := range batches {
+		batchCheckError = batch.Allocate(orderLine)
+		if batchCheckError == nil {
+			return batch.reference, nil
+		}
+	}
+	return "", OutOfStockError{orderLine.Sku}
+}
+
+type OutOfStockError struct {
+	sku Sku
+}
+
+func (o OutOfStockError) Error() string {
+	return fmt.Sprintf("%s is out of stock", o.sku)
 }

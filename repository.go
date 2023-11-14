@@ -19,7 +19,15 @@ func NewSQLRepository() SQLRepository {
 const insertBatchRow string = `INSERT INTO batches VALUES(?,?,?,?)`
 
 func (s *SQLRepository) AddBatch(batch Batch) error {
-	if _, err := s.db.Exec(insertBatchRow, batch.reference, batch.sku, batch.quantity, batch.ETA); err != nil {
+	if _, err := s.db.Exec(insertBatchRow, batch.reference, batch.sku, batch.quantity, batch.eta); err != nil {
+		return fmt.Errorf("could not add persist batch to db %w", err)
+	}
+
+	return nil
+}
+
+func (s *SQLRepository) AddOrderLine(orderLine OrderLine) error {
+	if _, err := s.db.Exec(`INSERT INTO order_lines VALUES (?,?,?)`, orderLine.OrderID, orderLine.Sku, orderLine.Quantity); err != nil {
 		return fmt.Errorf("could not add persist batch to db %w", err)
 	}
 
@@ -32,7 +40,7 @@ func (s *SQLRepository) GetBatch(reference Reference) (Batch, error) {
 	}
 
 	row := s.db.QueryRow(`SELECT * FROM "batches" WHERE reference=?`, reference)
-	if err := row.Scan(&batch.reference, &batch.sku, &batch.quantity, &batch.ETA); err != nil {
+	if err := row.Scan(&batch.reference, &batch.sku, &batch.quantity, &batch.eta); err != nil {
 		return batch, fmt.Errorf("could not find the requested batch %w", err)
 	}
 
@@ -83,15 +91,32 @@ func (s *SQLRepository) ListBatches() ([]Batch, error) {
 		batch := Batch{
 			allocations: mapset.NewSet[OrderLine](),
 		}
-		if err := batchRows.Scan(&batch.reference, &batch.sku, &batch.quantity, &batch.ETA); err != nil {
+		if err := batchRows.Scan(&batch.reference, &batch.sku, &batch.quantity, &batch.eta); err != nil {
 			return batchList, fmt.Errorf("could not scan when generating batch list")
 		}
 		batch, err = s.enrichAllocations(batch)
 		if err != nil {
-			return batchList, fmt.Errorf("could not enrich allocations for batchReference: %s", batch.reference)
+			return batchList, fmt.Errorf("could not enrich allocations for batchReference %s: %s", batch.reference, err)
 		}
 		batchList = append(batchList, batch)
 	}
 
 	return batchList, nil
+}
+
+func (s *SQLRepository) AllocateToBatch(batch Batch, orderLine OrderLine) error {
+	batch, err := s.GetBatch(batch.reference)
+	if err != nil {
+		return fmt.Errorf("could not find batch: %s", err)
+	}
+
+	if canAllocate, reason := batch.CanAllocate(orderLine); !canAllocate {
+		return fmt.Errorf("cannot allocate this order to this batch: %s", reason)
+	}
+
+	if _, err := s.db.Exec(`INSERT INTO batches_order_lines VALUES (?,?)`, batch.reference, orderLine.OrderID); err != nil {
+		return fmt.Errorf("failed to store allocation to db: %s", err)
+	}
+
+	return nil
 }
