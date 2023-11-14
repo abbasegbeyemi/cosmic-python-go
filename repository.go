@@ -36,8 +36,11 @@ func (s *SQLRepository) GetBatch(reference Reference) (Batch, error) {
 		return batch, fmt.Errorf("could not find the requested batch %w", err)
 	}
 
-	// Get the allocations
-	allocationsRows, err := s.db.Query(`SELECT * FROM batches_order_lines WHERE batch_id=?`, reference)
+	return s.enrichAllocations(batch)
+}
+
+func (s *SQLRepository) enrichAllocations(batch Batch) (Batch, error) {
+	allocationsRows, err := s.db.Query(`SELECT * FROM batches_order_lines WHERE batch_id=?`, batch.reference)
 
 	if err != nil {
 		return batch, fmt.Errorf("could not get allocations for batch: %w", err)
@@ -59,8 +62,36 @@ func (s *SQLRepository) GetBatch(reference Reference) (Batch, error) {
 	}
 
 	if err := allocationsRows.Err(); err != nil {
-		return batch, fmt.Errorf("an error occured while iterating over allocations: %w", err)
+		return batch, fmt.Errorf("an error occurred while iterating over allocations: %w", err)
 	}
 
 	return batch, nil
+}
+
+func (s *SQLRepository) ListBatches() ([]Batch, error) {
+	var batchList []Batch
+
+	batchRows, err := s.db.Query(`SELECT * FROM batches`)
+
+	if err != nil {
+		return batchList, fmt.Errorf("could not get batches: %w", err)
+	}
+
+	defer batchRows.Close()
+
+	for batchRows.Next() {
+		batch := Batch{
+			allocations: mapset.NewSet[OrderLine](),
+		}
+		if err := batchRows.Scan(&batch.reference, &batch.sku, &batch.quantity, &batch.ETA); err != nil {
+			return batchList, fmt.Errorf("could not scan when generating batch list")
+		}
+		batch, err = s.enrichAllocations(batch)
+		if err != nil {
+			return batchList, fmt.Errorf("could not enrich allocations for batchReference: %s", batch.reference)
+		}
+		batchList = append(batchList, batch)
+	}
+
+	return batchList, nil
 }
