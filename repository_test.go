@@ -203,3 +203,67 @@ func TestSQLRepository_ListBatch(t *testing.T) {
 	}))
 
 }
+
+func TestSQLRepository_AddOrderLine(t *testing.T) {
+	db, err := sql.Open("sqlite3", testDBFile)
+	assert.Nil(t, err)
+
+	createTables(t, db)
+
+	defer truncateTables(t, db)
+
+	repo := SQLRepository{
+		db: db,
+	}
+
+	orderLine := OrderLine{
+		OrderID:  "order-001",
+		Sku:      "LARGE-TABLE",
+		Quantity: 12,
+	}
+
+	err = repo.AddOrderLine(orderLine)
+	assert.Nil(t, err)
+
+}
+
+func TestSQLRepository_AllocateToBatch(t *testing.T) {
+	db, err := sql.Open("sqlite3", testDBFile)
+	assert.Nil(t, err)
+
+	createTables(t, db)
+
+	defer truncateTables(t, db)
+
+	repo := SQLRepository{
+		db: db,
+	}
+
+	sku := "LARGE-TABLE"
+
+	batch := Batch{
+		reference: "batch-012",
+		sku:       Sku(sku),
+		quantity:  40,
+	}
+
+	orderLine := OrderLine{
+		OrderID:  "order-321",
+		Quantity: 12,
+		Sku:      Sku(sku),
+	}
+
+	err = repo.AddBatch(batch)
+	assert.Nil(t, err)
+
+	err = repo.AddOrderLine(orderLine)
+	assert.Nil(t, err)
+
+	err = repo.AllocateToBatch(batch, orderLine)
+	assert.Nil(t, err)
+
+	allocatedBatch, err := repo.GetBatch(batch.reference)
+	assert.Nil(t, err)
+
+	assert.EqualExportedValues(t, allocatedBatch.allocations.ToSlice()[0], orderLine)
+}
