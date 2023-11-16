@@ -23,7 +23,7 @@ func (s *Server) AllocationsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, `{"message": %s}`, err)
+		fmt.Fprintf(w, `{"message": %q}`, err)
 		return
 	}
 
@@ -31,7 +31,8 @@ func (s *Server) AllocationsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		fmt.Fprintf(w, `{"message": %s}`, err)
+		fmt.Fprintf(w, `{"message": %q}`, err)
+		return
 	}
 
 	w.WriteHeader(201)

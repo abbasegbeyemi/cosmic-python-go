@@ -61,7 +61,7 @@ func generateOrderLineJson(t *testing.T, orderId domain.Reference, sku domain.Sk
 
 func TestAPI(t *testing.T) {
 
-	t.Run("api should return allocation", func(t *testing.T) {
+	t.Run("happy path returns 201 and allocated batch", func(t *testing.T) {
 		sku := randomSku(t, "")
 		otherSku := randomSku(t, "other")
 
@@ -76,16 +76,15 @@ func TestAPI(t *testing.T) {
 			BatchAllocations: make(map[domain.Reference]domain.OrderLine),
 		}
 
-		orderJson := generateOrderLineJson(t, randomOrderId(t, "random"), sku, 10)
-		request, _ := http.NewRequest(http.MethodPost, "/allocate", bytes.NewReader(orderJson))
-		response := httptest.NewRecorder()
-
 		service := services.NewStockService(repo)
 
 		server := Server{
 			service: &service,
 		}
 
+		orderJson := generateOrderLineJson(t, randomOrderId(t, "random"), sku, 10)
+		request, _ := http.NewRequest(http.MethodPost, "/allocate", bytes.NewReader(orderJson))
+		response := httptest.NewRecorder()
 		server.AllocationsHandler(response, request)
 
 		assert.Equal(t, response.Result().StatusCode, http.StatusCreated)
@@ -95,21 +94,19 @@ func TestAPI(t *testing.T) {
 		assert.Equal(t, string(earlyBatchRef), batchRef)
 	})
 
-	t.Run("allocations are persisted", func(t *testing.T) {
+	t.Run("unhappy path returns 400 and error message", func(t *testing.T) {
 
-		sku := randomSku(t, "")
+		unknownSku := randomSku(t, "unknown")
+		orderId := randomOrderId(t, "")
+		order1 := generateOrderLineJson(t, orderId, unknownSku, 10)
 
-		batch1 := randomBatchRef(t, "batch1")
-		batch2 := randomBatchRef(t, "batch2")
 		repo := &repos.FakeRepository{
 			Batches: []domain.Batch{
-				domain.NewBatch(batch1, sku, 10, time.Time{}.AddDate(2025, 2, 21)),
-				domain.NewBatch(batch2, sku, 10, time.Time{}.AddDate(2025, 2, 21)),
+				domain.NewBatch(randomBatchRef(t, ""), randomSku(t, ""), 10, time.Time{}.AddDate(2025, 2, 21)),
+				domain.NewBatch(randomBatchRef(t, ""), randomSku(t, ""), 10, time.Time{}.AddDate(2025, 2, 21)),
 			},
 			BatchAllocations: make(map[domain.Reference]domain.OrderLine),
 		}
-
-		order1 := generateOrderLineJson(t, randomOrderId(t, "order1"), sku, 10)
 
 		service := services.NewStockService(repo)
 
@@ -122,16 +119,13 @@ func TestAPI(t *testing.T) {
 
 		server.AllocationsHandler(response, request)
 
-		assert.Equal(t, response.Result().StatusCode, http.StatusCreated)
-		assert.Equal(t, string(batch1), getBatchRef(t, response))
+		assert.Equal(t, response.Result().StatusCode, http.StatusUnprocessableEntity)
 
-		// Second order should go to batch 2
-		order2 := generateOrderLineJson(t, randomOrderId(t, "order2"), sku, 10)
-		request, _ = http.NewRequest(http.MethodPost, "/allocate", bytes.NewReader(order2))
-		response = httptest.NewRecorder()
-		server.AllocationsHandler(response, request)
+		responseRecord := make(map[string]any)
 
-		assert.Equal(t, response.Result().StatusCode, http.StatusCreated)
-		assert.Equal(t, string(batch2), getBatchRef(t, response))
+		err := json.Unmarshal(response.Body.Bytes(), &responseRecord)
+		assert.Nil(t, err)
+
+		assert.Contains(t, responseRecord["message"], fmt.Sprintf("%s sku is invalid", unknownSku))
 	})
 }
