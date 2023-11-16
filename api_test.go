@@ -35,8 +35,8 @@ func randomBatchRef(t *testing.T, suffix string) Reference {
 	return Reference(fmt.Sprintf("batch-%s-%s", uuid.New(), suffix))
 }
 
-func randomOrderId(t *testing.T, suffix string) Reference {
-	return Reference(fmt.Sprintf("order-%s-%s", uuid.New(), suffix))
+func randomOrderId(t *testing.T, suffix string) domain.Reference {
+	return domain.Reference(fmt.Sprintf("order-%s-%s", uuid.New(), suffix))
 }
 
 func getBatchRef(t *testing.T, response *httptest.ResponseRecorder) string {
