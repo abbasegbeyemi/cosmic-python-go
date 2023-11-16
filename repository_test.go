@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/abbasegbeyemi/cosmic-python-go/domain"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 )
 
-const createBatchesTable string = `
+const createBatchesTableSQL string = `
 	CREATE TABLE IF NOT EXISTS batches (
 	reference STRING NOT NULL PRIMARY KEY,
 	sku STRING NOT NULL,
@@ -47,7 +48,7 @@ const testDBFile string = "orders_test.sqlite"
 
 func createTables(t *testing.T, db *sql.DB) {
 	t.Helper()
-	if _, err := db.Exec(createBatchesTable); err != nil {
+	if _, err := db.Exec(createBatchesTableSQL); err != nil {
 		t.Fatalf("could not create batches table %s", err)
 	}
 	if _, err := db.Exec(createOrderLinesTableSQL); err != nil {
@@ -100,7 +101,7 @@ func TestSQLRepository_AddBatch(t *testing.T) {
 		)
 
 		repo := SQLRepository{
-			db: db,
+			db: &DBWrapper{db},
 		}
 		err = repo.AddBatch(batch)
 		assert.Nil(t, err)
@@ -122,7 +123,7 @@ func TestSQLRepository_GetBatch(t *testing.T) {
 	defer truncateTables(t, db)
 	t.Run("can retrieve batch", func(t *testing.T) {
 		repo := SQLRepository{
-			db: db,
+			db: &DBWrapper{db},
 		}
 
 		existingBatch := Batch{
@@ -155,7 +156,7 @@ func TestSQLRepository_GetBatch(t *testing.T) {
 		insertAllocation(t, db, batchRef, orderId)
 
 		repo := SQLRepository{
-			db: db,
+			db: &DBWrapper{db},
 		}
 
 		receivedBatch, err := repo.GetBatch(batchRef)
@@ -182,7 +183,7 @@ func TestSQLRepository_ListBatch(t *testing.T) {
 	insertBatch(t, db, "batch-002", sku, 10, time.Time{})
 
 	repo := SQLRepository{
-		db: db,
+		db: &DBWrapper{db},
 	}
 
 	receivedBatches, err := repo.ListBatches()
@@ -202,4 +203,68 @@ func TestSQLRepository_ListBatch(t *testing.T) {
 		return b.reference == Reference("batch-007")
 	}))
 
+}
+
+func TestSQLRepository_AddOrderLine(t *testing.T) {
+	db, err := sql.Open("sqlite3", testDBFile)
+	assert.Nil(t, err)
+
+	createTables(t, db)
+
+	defer truncateTables(t, db)
+
+	repo := SQLRepository{
+		db: &DBWrapper{db},
+	}
+
+	orderLine := domain.OrderLine{
+		OrderID:  "order-001",
+		Sku:      "LARGE-TABLE",
+		Quantity: 12,
+	}
+
+	err = repo.AddOrderLine(orderLine)
+	assert.Nil(t, err)
+
+}
+
+func TestSQLRepository_AllocateToBatch(t *testing.T) {
+	db, err := sql.Open("sqlite3", testDBFile)
+	assert.Nil(t, err)
+
+	createTables(t, db)
+
+	defer truncateTables(t, db)
+
+	repo := SQLRepository{
+		db: &DBWrapper{db},
+	}
+
+	sku := "LARGE-TABLE"
+
+	batch := domain.Batch{
+		Reference: "batch-012",
+		Sku:       domain.Sku(sku),
+		Quantity:  40,
+	}
+
+	orderLine := domain.OrderLine{
+		OrderID:  "order-321",
+		Quantity: 12,
+		Sku:      domain.Sku(sku),
+	}
+
+	err = repo.AddBatch(batch)
+	assert.Nil(t, err)
+
+	err = repo.AddOrderLine(orderLine)
+	assert.Nil(t, err)
+
+	err = repo.AllocateToBatch(batch, orderLine)
+	assert.Nil(t, err)
+
+	allocatedBatch, err := repo.GetBatch(batch.Reference)
+	assert.Nil(t, err)
+
+	assert.EqualExportedValues(t, allocatedBatch.Allocations.ToSlice()[0], orderLine)
 }

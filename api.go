@@ -1,19 +1,25 @@
 package cosmicpythongo
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/abbasegbeyemi/cosmic-python-go/domain"
 )
 
-func AllocationsServer(w http.ResponseWriter, r *http.Request) {
-	db, err := sql.Open("sqlite3", "orders_test.sqlite")
-	if err != nil {
-		w.WriteHeader(500)
-	}
-	repo := SQLRepository{db: db}
-	batches, err := repo.ListBatches()
+type service interface {
+	Allocate(orderLine domain.OrderLine) (domain.Reference, error)
+}
+
+type Server struct {
+	service service
+}
+
+func (s *Server) AllocationsHandler(w http.ResponseWriter, r *http.Request) {
+	var orderLine domain.OrderLine
+
+	err := json.NewDecoder(r.Body).Decode(&orderLine)
 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -21,38 +27,9 @@ func AllocationsServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var orderLine OrderLine
-
-	err = json.NewDecoder(r.Body).Decode(&orderLine)
+	batchRef, err := s.service.Allocate(orderLine)
 
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, `{"message": %s}`, err)
-		return
-	}
-
-	batchRef, err := Allocate(orderLine, batches)
-
-	if err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		fmt.Fprintf(w, `{"message": %s}`, err)
-		return
-	}
-
-	if err = repo.AddOrderLine(orderLine); err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		fmt.Fprintf(w, `{"message": %s}`, err)
-		return
-	}
-
-	batchToAllocate, err := repo.GetBatch(batchRef)
-
-	if err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		fmt.Fprintf(w, `{"message": %s}`, err)
-	}
-
-	if err := repo.AllocateToBatch(batchToAllocate, orderLine); err != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		fmt.Fprintf(w, `{"message": %s}`, err)
 	}
