@@ -68,20 +68,20 @@ func truncateTables(t *testing.T, db *sql.DB) {
 
 func insertBatch(t *testing.T, db *sql.DB, reference domain.Reference, sku domain.Sku, quantity int, eta time.Time) {
 	t.Helper()
-	if _, err := db.Exec("INSERT INTO batches VALUES (?,?,?,?)", reference, sku, quantity, eta); err != nil {
+	if _, err := db.Exec(insertBatchRow, reference, sku, quantity, eta); err != nil {
 		t.Fatalf("could not seed the db with batches: %s", err)
 	}
 }
 func insertOrderLine(t *testing.T, db *sql.DB, orderId domain.Reference, sku domain.Sku, quantity int) {
 	t.Helper()
-	if _, err := db.Exec("INSERT INTO order_lines VALUES (?,?,?)", orderId, sku, quantity); err != nil {
+	if _, err := db.Exec(insertOrderLineRow, orderId, sku, quantity); err != nil {
 		t.Fatalf("could not seed the db with order lines: %s", err)
 	}
 }
 
 func insertAllocation(t *testing.T, db *sql.DB, batchRef, orderId domain.Reference) {
 	t.Helper()
-	if _, err := db.Exec("INSERT INTO batches_order_lines VALUES (?,?)", batchRef, orderId); err != nil {
+	if _, err := db.Exec(insertBatchOrderLineRow, batchRef, orderId); err != nil {
 		t.Fatalf("could not seed the db with allocations: %s", err)
 	}
 }
@@ -101,13 +101,13 @@ func TestSQLRepository_AddBatch(t *testing.T) {
 		)
 
 		repo := SQLRepository{
-			DB: db,
+			DB: &DBWrapper{db},
 		}
 		err = repo.AddBatch(batch)
 		assert.Nil(t, err)
 
 		createdBatch := domain.Batch{}
-		row := db.QueryRow(`SELECT reference, sku, quantity, eta FROM "batches" WHERE reference=?`, batch.Reference)
+		row := db.QueryRow(selectBatchRow, batch.Reference)
 		err = row.Scan(&createdBatch.Reference, &createdBatch.Sku, &createdBatch.Quantity, &createdBatch.ETA)
 		assert.Nil(t, err)
 
@@ -126,7 +126,7 @@ func TestSQLRepository_GetBatch(t *testing.T) {
 	defer truncateTables(t, db)
 	t.Run("can retrieve batch", func(t *testing.T) {
 		repo := SQLRepository{
-			DB: db,
+			DB: &DBWrapper{db},
 		}
 
 		existingBatch := domain.Batch{
@@ -162,7 +162,7 @@ func TestSQLRepository_GetBatch(t *testing.T) {
 		insertAllocation(t, db, batchRef, orderId)
 
 		repo := SQLRepository{
-			DB: db,
+			DB: &DBWrapper{db},
 		}
 
 		receivedBatch, err := repo.GetBatch(batchRef)
@@ -189,7 +189,7 @@ func TestSQLRepository_ListBatch(t *testing.T) {
 	insertBatch(t, db, "batch-002", sku, 10, time.Time{})
 
 	repo := SQLRepository{
-		DB: db,
+		DB: &DBWrapper{db},
 	}
 
 	receivedBatches, err := repo.ListBatches()
@@ -220,7 +220,7 @@ func TestSQLRepository_AddOrderLine(t *testing.T) {
 	defer truncateTables(t, db)
 
 	repo := SQLRepository{
-		DB: db,
+		DB: &DBWrapper{db},
 	}
 
 	orderLine := domain.OrderLine{
@@ -243,7 +243,7 @@ func TestSQLRepository_AllocateToBatch(t *testing.T) {
 	defer truncateTables(t, db)
 
 	repo := SQLRepository{
-		DB: db,
+		DB: &DBWrapper{db},
 	}
 
 	sku := "LARGE-TABLE"

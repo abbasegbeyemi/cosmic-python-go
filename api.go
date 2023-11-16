@@ -1,7 +1,6 @@
 package cosmicpythongo
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,11 +10,12 @@ import (
 )
 
 func AllocationsServer(w http.ResponseWriter, r *http.Request) {
-	db, err := sql.Open("sqlite3", "orders_test.sqlite")
+	repo, err := repos.NewSqliteRepository("orders.sqlite")
 	if err != nil {
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, `{"message": %s}`, err)
 	}
-	repo := repos.SQLRepository{DB: db}
+
 	batches, err := repo.ListBatches()
 
 	if err != nil {

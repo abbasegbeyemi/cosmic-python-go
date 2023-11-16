@@ -9,15 +9,60 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-type SQLRepository struct {
+type DB interface {
+	Exec(string, ...any) (sql.Result, error)
+	Query(string, ...any) (DBRows, error)
+	QueryRow(string, ...any) DBRow
+}
+
+type DBWrapper struct {
 	DB *sql.DB
 }
 
-func NewSQLRepository() SQLRepository {
-	return SQLRepository{}
+func (db *DBWrapper) Exec(query string, args ...any) (sql.Result, error) {
+	return db.DB.Exec(query, args...)
+}
+
+func (db *DBWrapper) Query(query string, args ...any) (DBRows, error) {
+	return db.DB.Query(query, args...)
+}
+
+func (db *DBWrapper) QueryRow(query string, args ...any) DBRow {
+	return db.DB.QueryRow(query, args...)
+}
+
+type DBRow interface {
+	Scan(...any) error
+}
+
+type DBRows interface {
+	Next() bool
+	Close() error
+	Scan(...any) error
+	Err() error
+}
+
+type SQLRepository struct {
+	DB DB
 }
 
 const insertBatchRow string = `INSERT INTO batches VALUES(?,?,?,?)`
+const insertOrderLineRow string = `INSERT INTO order_lines VALUES (?,?,?)`
+const insertBatchOrderLineRow string = `INSERT INTO batches_order_lines VALUES (?,?)`
+const selectBatchRow string = `SELECT reference, sku, quantity, eta FROM "batches" WHERE reference=?`
+const selectAllBatches string = `SELECT * FROM batches`
+const selectBatchAllocations string = `SELECT * FROM batches_order_lines WHERE batch_id=?`
+const selectOrderLineRow string = `SELECT * FROM order_lines WHERE order_id=?`
+
+func NewSqliteRepository(filepath string) (SQLRepository, error) {
+	db, err := sql.Open("sqlite3", filepath)
+	if err != nil {
+		return SQLRepository{}, fmt.Errorf("could not open sqlite filepath: %w", err)
+	}
+	return SQLRepository{
+		DB: &DBWrapper{DB: db},
+	}, nil
+}
 
 func (s *SQLRepository) AddBatch(batch domain.Batch) error {
 	if _, err := s.DB.Exec(insertBatchRow, batch.Reference, batch.Sku, batch.Quantity, batch.ETA); err != nil {
@@ -28,7 +73,7 @@ func (s *SQLRepository) AddBatch(batch domain.Batch) error {
 }
 
 func (s *SQLRepository) AddOrderLine(orderLine domain.OrderLine) error {
-	if _, err := s.DB.Exec(`INSERT INTO order_lines VALUES (?,?,?)`, orderLine.OrderID, orderLine.Sku, orderLine.Quantity); err != nil {
+	if _, err := s.DB.Exec(insertOrderLineRow, orderLine.OrderID, orderLine.Sku, orderLine.Quantity); err != nil {
 		return fmt.Errorf("could not add persist batch to db %w", err)
 	}
 
@@ -40,7 +85,7 @@ func (s *SQLRepository) GetBatch(reference domain.Reference) (domain.Batch, erro
 		Allocations: mapset.NewSet[domain.OrderLine](),
 	}
 
-	row := s.DB.QueryRow(`SELECT * FROM "batches" WHERE reference=?`, reference)
+	row := s.DB.QueryRow(selectBatchRow, reference)
 
 	if err := row.Scan(&batch.Reference, &batch.Sku, &batch.Quantity, &batch.ETA); err != nil {
 		return batch, fmt.Errorf("could not find the requested batch %w", err)
@@ -50,7 +95,7 @@ func (s *SQLRepository) GetBatch(reference domain.Reference) (domain.Batch, erro
 }
 
 func (s *SQLRepository) enrichAllocations(batch domain.Batch) (domain.Batch, error) {
-	allocationsRows, err := s.DB.Query(`SELECT * FROM batches_order_lines WHERE batch_id=?`, batch.Reference)
+	allocationsRows, err := s.DB.Query(selectBatchAllocations, batch.Reference)
 
 	if err != nil {
 		return batch, fmt.Errorf("could not get allocations for batch: %w", err)
@@ -65,7 +110,7 @@ func (s *SQLRepository) enrichAllocations(batch domain.Batch) (domain.Batch, err
 		}
 
 		orderLine := domain.OrderLine{}
-		if err := s.DB.QueryRow(`SELECT * FROM order_lines WHERE order_id=?`, orderID).Scan(&orderLine.OrderID, &orderLine.Sku, &orderLine.Quantity); err != nil {
+		if err := s.DB.QueryRow(selectOrderLineRow, orderID).Scan(&orderLine.OrderID, &orderLine.Sku, &orderLine.Quantity); err != nil {
 			return batch, fmt.Errorf("could not scan the order line with id %q: %w", orderID, err)
 		}
 		batch.Allocate(orderLine)
@@ -81,7 +126,7 @@ func (s *SQLRepository) enrichAllocations(batch domain.Batch) (domain.Batch, err
 func (s *SQLRepository) ListBatches() ([]domain.Batch, error) {
 	var batchList []domain.Batch
 
-	batchRows, err := s.DB.Query(`SELECT * FROM batches`)
+	batchRows, err := s.DB.Query(selectAllBatches)
 
 	if err != nil {
 		return batchList, fmt.Errorf("could not get batches: %w", err)
@@ -118,7 +163,7 @@ func (s *SQLRepository) AllocateToBatch(batch domain.Batch, orderLine domain.Ord
 		return fmt.Errorf("cannot allocate this order to this batch: %s", reason)
 	}
 
-	if _, err := s.DB.Exec(`INSERT INTO batches_order_lines VALUES (?,?)`, batch.Reference, orderLine.OrderID); err != nil {
+	if _, err := s.DB.Exec(insertBatchOrderLineRow, batch.Reference, orderLine.OrderID); err != nil {
 		return fmt.Errorf("failed to store allocation to db: %s", err)
 	}
 
