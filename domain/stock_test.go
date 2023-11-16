@@ -1,4 +1,4 @@
-package cosmicpythongo
+package domain
 
 import (
 	"testing"
@@ -9,12 +9,12 @@ import (
 )
 
 func TestBatch_AvailableQuantity(t *testing.T) {
-	batch := Batch{reference: "batch-001", sku: "SMALL-TABLE", quantity: 5, allocations: mapset.NewSet[OrderLine]()}
-	assert.Equal(t, batch.quantity, batch.AvailableQuantity())
+	batch := Batch{Reference: "batch-001", Sku: "SMALL-TABLE", Quantity: 5, Allocations: mapset.NewSet[OrderLine]()}
+	assert.Equal(t, batch.Quantity, batch.AvailableQuantity())
 }
 
 func TestBatch_AllocatedQuantity(t *testing.T) {
-	batch := Batch{reference: "batch-001", sku: "SMALL-TABLE", quantity: 5, allocations: mapset.NewSet[OrderLine]()}
+	batch := Batch{Reference: "batch-001", Sku: "SMALL-TABLE", Quantity: 5, Allocations: mapset.NewSet[OrderLine]()}
 
 	batch.Allocate(OrderLine{
 		OrderID:  "order-001",
@@ -26,7 +26,7 @@ func TestBatch_AllocatedQuantity(t *testing.T) {
 
 func TestBatch_Allocate(t *testing.T) {
 	t.Run("should be able to allocate an order to a batch", func(t *testing.T) {
-		batch := Batch{reference: "batch-001", sku: "SMALL-TABLE", quantity: 5, allocations: mapset.NewSet[OrderLine]()}
+		batch := Batch{Reference: "batch-001", Sku: "SMALL-TABLE", Quantity: 5, Allocations: mapset.NewSet[OrderLine]()}
 		orderLine := OrderLine{
 			OrderID:  "order-ref",
 			Sku:      "SMALL-TABLE",
@@ -38,8 +38,8 @@ func TestBatch_Allocate(t *testing.T) {
 	})
 
 	t.Run("order line allocated to batch decreases available quantity", func(t *testing.T) {
-		batch := Batch{reference: "batch-001", sku: "SMALL-TABLE", quantity: 5, allocations: mapset.NewSet[OrderLine]()}
-		batch.eta = time.Now()
+		batch := Batch{Reference: "batch-001", Sku: "SMALL-TABLE", Quantity: 5, Allocations: mapset.NewSet[OrderLine]()}
+		batch.ETA = time.Now()
 
 		orderLine := OrderLine{
 			OrderID:  "order-ref",
@@ -50,11 +50,11 @@ func TestBatch_Allocate(t *testing.T) {
 		err := batch.Allocate(orderLine)
 		assert.Nil(t, err)
 
-		assert.Equal(t, batch.quantity-orderLine.Quantity, batch.AvailableQuantity())
+		assert.Equal(t, batch.Quantity-orderLine.Quantity, batch.AvailableQuantity())
 	})
 
 	t.Run("should be able to allocate a list of orders", func(t *testing.T) {
-		batch := Batch{reference: "batch-001", sku: "SMALL-TABLE", quantity: 20, allocations: mapset.NewSet[OrderLine]()}
+		batch := Batch{Reference: "batch-001", Sku: "SMALL-TABLE", Quantity: 20, Allocations: mapset.NewSet[OrderLine]()}
 		err := batch.Allocate(OrderLine{
 			OrderID:  "order-001",
 			Quantity: 3,
@@ -69,13 +69,13 @@ func TestBatch_Allocate(t *testing.T) {
 		})
 		assert.Nil(t, err)
 
-		assert.Equal(t, batch.quantity-3-5, batch.AvailableQuantity())
+		assert.Equal(t, batch.Quantity-3-5, batch.AvailableQuantity())
 	})
 }
 
 func TestBatch_CanAllocate(t *testing.T) {
 	t.Run("should not allocate order of different type to a batch", func(t *testing.T) {
-		batch := Batch{reference: "batch-001", sku: "SMALL-TABLE", quantity: 5, allocations: mapset.NewSet[OrderLine]()}
+		batch := Batch{Reference: "batch-001", Sku: "SMALL-TABLE", Quantity: 5, Allocations: mapset.NewSet[OrderLine]()}
 		orderLine := OrderLine{
 			OrderID:  "order-ref",
 			Sku:      "BIG-TABLE",
@@ -87,7 +87,7 @@ func TestBatch_CanAllocate(t *testing.T) {
 	})
 
 	t.Run("should not be able to allocate if available quantity is less than order quantity", func(t *testing.T) {
-		batch := Batch{reference: "batch-001", sku: "SMALL-TABLE", quantity: 10, allocations: mapset.NewSet[OrderLine]()}
+		batch := Batch{Reference: "batch-001", Sku: "SMALL-TABLE", Quantity: 10, Allocations: mapset.NewSet[OrderLine]()}
 		orderLine := OrderLine{
 			OrderID:  "order-ref",
 			Sku:      "SMALL-TABLE",
@@ -99,7 +99,7 @@ func TestBatch_CanAllocate(t *testing.T) {
 	})
 
 	t.Run("same order allocated twice should not decrease available quantity", func(t *testing.T) {
-		batch := Batch{reference: "batch-001", sku: "SMALL-TABLE", quantity: 10, allocations: mapset.NewSet[OrderLine]()}
+		batch := Batch{Reference: "batch-001", Sku: "SMALL-TABLE", Quantity: 10, Allocations: mapset.NewSet[OrderLine]()}
 
 		orderLine := OrderLine{
 			OrderID:  "order-ref",
@@ -118,7 +118,7 @@ func TestBatch_CanAllocate(t *testing.T) {
 }
 
 func TestBatch_Deallocate(t *testing.T) {
-	batch := Batch{reference: "batch-001", sku: "SMALL-TABLE", quantity: 5, allocations: mapset.NewSet[OrderLine]()}
+	batch := Batch{Reference: "batch-001", Sku: "SMALL-TABLE", Quantity: 5, Allocations: mapset.NewSet[OrderLine]()}
 	orderLine := OrderLine{
 		OrderID:  "order-001",
 		Sku:      "SMALL-TABLE",
@@ -137,7 +137,7 @@ func TestBatch_Deallocate(t *testing.T) {
 
 func TestBatch_OrderAllocated(t *testing.T) {
 	t.Run("should return true if batch has order allocated", func(t *testing.T) {
-		batch := Batch{reference: "batch-001", sku: "SMALL-TABLE", quantity: 5, allocations: mapset.NewSet[OrderLine]()}
+		batch := Batch{Reference: "batch-001", Sku: "SMALL-TABLE", Quantity: 5, Allocations: mapset.NewSet[OrderLine]()}
 
 		orderLine := OrderLine{
 			OrderID:  "order-001",
@@ -153,7 +153,7 @@ func TestBatch_OrderAllocated(t *testing.T) {
 	})
 
 	t.Run("should return false if batch has order allocated", func(t *testing.T) {
-		batch := Batch{reference: "batch-001", sku: "SMALL-TABLE", quantity: 5, allocations: mapset.NewSet[OrderLine]()}
+		batch := Batch{Reference: "batch-001", Sku: "SMALL-TABLE", Quantity: 5, Allocations: mapset.NewSet[OrderLine]()}
 
 		orderLine := OrderLine{
 			OrderID:  "order-001",
@@ -169,8 +169,8 @@ func TestBatch_OrderAllocated(t *testing.T) {
 
 func TestAllocate(t *testing.T) {
 	t.Run("allocate prefers current stock batches to shipments", func(t *testing.T) {
-		inStockBatch := Batch{reference: "in-stock-batch-001", sku: "RETRO-CLOCK", quantity: 100, allocations: mapset.NewSet[OrderLine]()}
-		shipmentBatch := Batch{reference: "shipment-batch-001", sku: "RETRO-CLOCK", quantity: 100, allocations: mapset.NewSet[OrderLine](), eta: time.Time{}.AddDate(0, 4, 1)}
+		inStockBatch := Batch{Reference: "in-stock-batch-001", Sku: "RETRO-CLOCK", Quantity: 100, Allocations: mapset.NewSet[OrderLine]()}
+		shipmentBatch := Batch{Reference: "shipment-batch-001", Sku: "RETRO-CLOCK", Quantity: 100, Allocations: mapset.NewSet[OrderLine](), ETA: time.Time{}.AddDate(0, 4, 1)}
 
 		line := OrderLine{
 			OrderID:  "order-002",
@@ -186,9 +186,9 @@ func TestAllocate(t *testing.T) {
 	})
 
 	t.Run("allocate prefers earlier batches to later", func(t *testing.T) {
-		earliestBatch := Batch{reference: "earliest-batch-001", sku: "RETRO-CLOCK", quantity: 100, allocations: mapset.NewSet[OrderLine](), eta: time.Time{}.AddDate(0, 2, 0)}
-		mediumBatch := Batch{reference: "medium-batch-001", sku: "RETRO-CLOCK", quantity: 100, allocations: mapset.NewSet[OrderLine](), eta: time.Time{}.AddDate(0, 4, 1)}
-		laterBatch := Batch{reference: "later-batch-001", sku: "RETRO-CLOCK", quantity: 100, allocations: mapset.NewSet[OrderLine](), eta: time.Time{}.AddDate(1, 0, 1)}
+		earliestBatch := Batch{Reference: "earliest-batch-001", Sku: "RETRO-CLOCK", Quantity: 100, Allocations: mapset.NewSet[OrderLine](), ETA: time.Time{}.AddDate(0, 2, 0)}
+		mediumBatch := Batch{Reference: "medium-batch-001", Sku: "RETRO-CLOCK", Quantity: 100, Allocations: mapset.NewSet[OrderLine](), ETA: time.Time{}.AddDate(0, 4, 1)}
+		laterBatch := Batch{Reference: "later-batch-001", Sku: "RETRO-CLOCK", Quantity: 100, Allocations: mapset.NewSet[OrderLine](), ETA: time.Time{}.AddDate(1, 0, 1)}
 
 		orderLine := OrderLine{
 			OrderID:  "order-123",
@@ -205,8 +205,8 @@ func TestAllocate(t *testing.T) {
 	})
 
 	t.Run("allocate returns allocated batch ref", func(t *testing.T) {
-		inStockBatch := Batch{reference: "in-stock-batch-001", sku: "TEDDY-BEAR", quantity: 100, allocations: mapset.NewSet[OrderLine]()}
-		shipmentBatch := Batch{reference: "shipment-batch-001", sku: "TEDDY-BEAR", quantity: 100, allocations: mapset.NewSet[OrderLine](), eta: time.Time{}.AddDate(0, 4, 1)}
+		inStockBatch := Batch{Reference: "in-stock-batch-001", Sku: "TEDDY-BEAR", Quantity: 100, Allocations: mapset.NewSet[OrderLine]()}
+		shipmentBatch := Batch{Reference: "shipment-batch-001", Sku: "TEDDY-BEAR", Quantity: 100, Allocations: mapset.NewSet[OrderLine](), ETA: time.Time{}.AddDate(0, 4, 1)}
 
 		line := OrderLine{
 			OrderID:  "order-002",
@@ -224,9 +224,9 @@ func TestAllocate(t *testing.T) {
 	})
 
 	t.Run("allocate will allocate to the soonest available batch", func(t *testing.T) {
-		earliestBatch := Batch{reference: "earliest-batch-001", sku: "RETRO-CLOCK", quantity: 4, allocations: mapset.NewSet[OrderLine](), eta: time.Time{}.AddDate(0, 2, 0)}
-		mediumBatch := Batch{reference: "medium-batch-001", sku: "RETRO-CLOCK", quantity: 100, allocations: mapset.NewSet[OrderLine](), eta: time.Time{}.AddDate(0, 4, 1)}
-		laterBatch := Batch{reference: "later-batch-001", sku: "RETRO-CLOCK", quantity: 100, allocations: mapset.NewSet[OrderLine](), eta: time.Time{}.AddDate(1, 0, 1)}
+		earliestBatch := Batch{Reference: "earliest-batch-001", Sku: "RETRO-CLOCK", Quantity: 4, Allocations: mapset.NewSet[OrderLine](), ETA: time.Time{}.AddDate(0, 2, 0)}
+		mediumBatch := Batch{Reference: "medium-batch-001", Sku: "RETRO-CLOCK", Quantity: 100, Allocations: mapset.NewSet[OrderLine](), ETA: time.Time{}.AddDate(0, 4, 1)}
+		laterBatch := Batch{Reference: "later-batch-001", Sku: "RETRO-CLOCK", Quantity: 100, Allocations: mapset.NewSet[OrderLine](), ETA: time.Time{}.AddDate(1, 0, 1)}
 
 		orderLine := OrderLine{
 			OrderID:  "order-123",
@@ -244,7 +244,7 @@ func TestAllocate(t *testing.T) {
 	})
 
 	t.Run("allocate returns error if unable to allocate", func(t *testing.T) {
-		batch := Batch{reference: "earliest-batch-001", sku: "RETRO-CLOCK", quantity: 4, allocations: mapset.NewSet[OrderLine](), eta: time.Time{}.AddDate(0, 2, 0)}
+		batch := Batch{Reference: "earliest-batch-001", Sku: "RETRO-CLOCK", Quantity: 4, Allocations: mapset.NewSet[OrderLine](), ETA: time.Time{}.AddDate(0, 2, 0)}
 		orderLine := OrderLine{
 			OrderID:  "order-123",
 			Sku:      "RETRO-CLOCK",

@@ -1,12 +1,16 @@
 {
     "cSpell.words": [
         "cosmicpythongo",
+        "DATETIME",
         "DBTX",
         "Deallocate",
         "deallocated",
         "deallocating",
+        "deckarep",
         "domainmodelling",
         "mapset",
-        "mattn"
-    ]
+        "mattn",
+        "stretchr"
+    ],
+    "cSpell.language": "en,en-GB"
 }
