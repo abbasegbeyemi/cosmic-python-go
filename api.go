@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/abbasegbeyemi/cosmic-python-go/domain"
+	"github.com/abbasegbeyemi/cosmic-python-go/repos"
 )
 
 func AllocationsServer(w http.ResponseWriter, r *http.Request) {
@@ -12,7 +15,7 @@ func AllocationsServer(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(500)
 	}
-	repo := SQLRepository{db: db}
+	repo := repos.SQLRepository{DB: db}
 	batches, err := repo.ListBatches()
 
 	if err != nil {
@@ -21,7 +24,7 @@ func AllocationsServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var orderLine OrderLine
+	var orderLine domain.OrderLine
 
 	err = json.NewDecoder(r.Body).Decode(&orderLine)
 
@@ -31,7 +34,7 @@ func AllocationsServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	batchRef, err := Allocate(orderLine, batches)
+	batchRef, err := domain.Allocate(orderLine, batches)
 
 	if err != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)

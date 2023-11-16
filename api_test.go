@@ -12,34 +12,78 @@ import (
 	"testing"
 	"time"
 
+	"github.com/abbasegbeyemi/cosmic-python-go/domain"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
-func randomSku(t *testing.T, prefix string) Sku {
+func insertBatch(t *testing.T, db *sql.DB, reference domain.Reference, sku domain.Sku, quantity int, eta time.Time) {
+	t.Helper()
+	if _, err := db.Exec("INSERT INTO batches VALUES (?,?,?,?)", reference, sku, quantity, eta); err != nil {
+		t.Fatalf("could not seed the db with batches: %s", err)
+	}
+}
+
+const createBatchesTable string = `
+	CREATE TABLE IF NOT EXISTS batches (
+	reference STRING NOT NULL PRIMARY KEY,
+	sku STRING NOT NULL,
+	quantity INTEGER NOT NULL,
+	eta DATETIME
+	);
+`
+
+const createOrderLinesTableSQL string = `
+	CREATE TABLE IF NOT EXISTS order_lines (
+	order_id STRING NOT NULL,
+	sku STRING NOT NULL,
+	quantity INTEGER NOT NULL
+	);
+`
+
+const createBatchesOrderLinesTableSQL string = `
+    CREATE TABLE IF NOT EXISTS batches_order_lines (
+    batch_id STRING NOT NULL,
+    order_id STRING NOT NULL,
+	FOREIGN KEY(batch_id) REFERENCES batches(reference)
+    FOREIGN KEY(order_id) REFERENCES order_lines(order_id)
+	PRIMARY KEY(batch_id, order_id)
+    );
+`
+
+const truncateTablesSQL string = `
+	DELETE FROM batches;
+	DELETE FROM order_lines;
+	DELETE FROM batches_order_lines;
+`
+
+const testDBFile string = "orders_test.sqlite"
+
+func randomSku(t *testing.T, prefix string) domain.Sku {
 	t.Helper()
 	var sizes = [5]string{"TINY", "SMALL", "MEDIUM", "LARGE", "MASSIVE"}
 	var products = [5]string{"TABLE", "CHAIR", "LAMP", "BOTTLE", "KEYRING"}
 
 	genSku := fmt.Sprintf("%s-%s", sizes[rand.Intn(5)], products[rand.Intn(5)])
 	if prefix != "" {
-		return Sku(fmt.Sprintf("%s-%s", strings.ToUpper(prefix), genSku))
+		return domain.Sku(fmt.Sprintf("%s-%s", strings.ToUpper(prefix), genSku))
 	}
-	return Sku(genSku)
+	return domain.Sku(genSku)
 }
 
-func randomBatchRef(t *testing.T, suffix string) Reference {
-	return Reference(fmt.Sprintf("batch-%s-%s", uuid.New(), suffix))
+func randomBatchRef(t *testing.T, suffix string) domain.Reference {
+	return domain.Reference(fmt.Sprintf("batch-%s-%s", uuid.New(), suffix))
 }
 
-func randomOrderId(t *testing.T, suffix string) Reference {
-	return Reference(fmt.Sprintf("order-%s-%s", uuid.New(), suffix))
+func randomOrderId(t *testing.T, suffix string) domain.Reference {
+	return domain.Reference(fmt.Sprintf("order-%s-%s", uuid.New(), suffix))
 }
 
-func addStock(t *testing.T, db *sql.DB, batches []Batch) {
+func addStock(t *testing.T, db *sql.DB, batches []domain.Batch) {
 	t.Helper()
 	for _, batch := range batches {
-		insertBatch(t, db, batch.reference, batch.sku, batch.quantity, batch.eta)
+		insertBatch(t, db, batch.Reference, batch.Sku, batch.Quantity, batch.ETA)
 	}
 
 }
@@ -51,8 +95,8 @@ func getBatchRef(t *testing.T, response *httptest.ResponseRecorder) string {
 	return allocatedBatch["batchRef"].(string)
 }
 
-func generateOrderLineJson(t *testing.T, orderId Reference, sku Sku, quantity int) []byte {
-	orderLine := OrderLine{
+func generateOrderLineJson(t *testing.T, orderId domain.Reference, sku domain.Sku, quantity int) []byte {
+	orderLine := domain.OrderLine{
 		OrderID:  orderId,
 		Sku:      sku,
 		Quantity: quantity,
@@ -62,6 +106,26 @@ func generateOrderLineJson(t *testing.T, orderId Reference, sku Sku, quantity in
 	assert.Nil(t, err)
 
 	return orderJson
+}
+
+func createTables(t *testing.T, db *sql.DB) {
+	t.Helper()
+	if _, err := db.Exec(createBatchesTable); err != nil {
+		t.Fatalf("could not create batches table %s", err)
+	}
+	if _, err := db.Exec(createOrderLinesTableSQL); err != nil {
+		t.Fatalf("could not create order_lines table %s", err)
+	}
+	if _, err := db.Exec(createBatchesOrderLinesTableSQL); err != nil {
+		t.Fatalf("could not create batches_order_lines table %s", err)
+	}
+}
+
+func truncateTables(t *testing.T, db *sql.DB) {
+	t.Helper()
+	if _, err := db.Exec(truncateTablesSQL); err != nil {
+		t.Fatalf("could not clear batches table %s", err)
+	}
 }
 
 func TestAPI(t *testing.T) {
@@ -76,10 +140,10 @@ func TestAPI(t *testing.T) {
 
 		earlyBatchRef := randomBatchRef(t, "earlyBatchRef")
 
-		addStock(t, db, []Batch{
-			{reference: earlyBatchRef, sku: sku, quantity: 100, eta: time.Time{}.AddDate(2025, 2, 21)},
-			{reference: randomBatchRef(t, "random"), sku: sku, quantity: 100, eta: time.Time{}.AddDate(2025, 2, 22)},
-			{reference: randomBatchRef(t, "random"), sku: otherSku, quantity: 100},
+		addStock(t, db, []domain.Batch{
+			{Reference: earlyBatchRef, Sku: sku, Quantity: 100, ETA: time.Time{}.AddDate(2025, 2, 21)},
+			{Reference: randomBatchRef(t, "random"), Sku: sku, Quantity: 100, ETA: time.Time{}.AddDate(2025, 2, 22)},
+			{Reference: randomBatchRef(t, "random"), Sku: otherSku, Quantity: 100},
 		})
 
 		orderJson := generateOrderLineJson(t, randomOrderId(t, "random"), sku, 10)
@@ -102,9 +166,9 @@ func TestAPI(t *testing.T) {
 		batch1 := randomBatchRef(t, "batch1")
 		batch2 := randomBatchRef(t, "batch2")
 
-		addStock(t, db, []Batch{
-			{reference: batch1, sku: sku, quantity: 10, eta: time.Time{}.AddDate(2025, 2, 21)},
-			{reference: batch2, sku: sku, quantity: 10, eta: time.Time{}.AddDate(2025, 2, 22)},
+		addStock(t, db, []domain.Batch{
+			{Reference: batch2, Sku: sku, Quantity: 10, ETA: time.Time{}.AddDate(2025, 2, 22).UTC()},
+			{Reference: batch1, Sku: sku, Quantity: 10, ETA: time.Time{}.AddDate(2025, 2, 21).UTC()},
 		})
 
 		order1 := generateOrderLineJson(t, randomOrderId(t, "order1"), sku, 10)
