@@ -67,13 +67,11 @@ func TestAPI(t *testing.T) {
 
 		earlyBatchRef := randomBatchRef(t, "earlyBatchRef")
 
-		repo := &repos.FakeRepository{
-			Batches: []domain.Batch{
-				domain.NewBatch(earlyBatchRef, sku, 100, time.Time{}.AddDate(2025, 2, 21)),
-				domain.NewBatch(randomBatchRef(t, "random"), sku, 100, time.Time{}.AddDate(2025, 4, 22)),
-				domain.NewBatch(randomBatchRef(t, "random"), otherSku, 100, time.Time{}.AddDate(2025, 5, 21)),
-			},
-			BatchAllocations: make(map[domain.Reference]domain.OrderLine),
+		repo := repos.NewFakeRepository()
+		repo.Batches = []domain.Batch{
+			domain.NewBatch(earlyBatchRef, sku, 100, time.Time{}.AddDate(2025, 2, 21)),
+			domain.NewBatch(randomBatchRef(t, "random"), sku, 100, time.Time{}.AddDate(2025, 4, 22)),
+			domain.NewBatch(randomBatchRef(t, "random"), otherSku, 100, time.Time{}.AddDate(2025, 5, 21)),
 		}
 
 		service := services.NewStockService(repo)
@@ -99,13 +97,10 @@ func TestAPI(t *testing.T) {
 		unknownSku := randomSku(t, "unknown")
 		orderId := randomOrderId(t, "")
 		order1 := generateOrderLineJson(t, orderId, unknownSku, 10)
-
-		repo := &repos.FakeRepository{
-			Batches: []domain.Batch{
-				domain.NewBatch(randomBatchRef(t, ""), randomSku(t, ""), 10, time.Time{}.AddDate(2025, 2, 21)),
-				domain.NewBatch(randomBatchRef(t, ""), randomSku(t, ""), 10, time.Time{}.AddDate(2025, 2, 21)),
-			},
-			BatchAllocations: make(map[domain.Reference]domain.OrderLine),
+		repo := repos.NewFakeRepository()
+		repo.Batches = []domain.Batch{
+			domain.NewBatch(randomBatchRef(t, ""), randomSku(t, ""), 10, time.Time{}.AddDate(2025, 2, 21)),
+			domain.NewBatch(randomBatchRef(t, ""), randomSku(t, ""), 10, time.Time{}.AddDate(2025, 2, 21)),
 		}
 
 		service := services.NewStockService(repo)

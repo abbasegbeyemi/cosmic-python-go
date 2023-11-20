@@ -159,11 +159,27 @@ func (s *SQLRepository) AllocateToBatch(batch domain.Batch, orderLine domain.Ord
 		return fmt.Errorf("could not find batch: %s", err)
 	}
 
-	if canAllocate, reason := batch.CanAllocate(orderLine); !canAllocate {
-		return fmt.Errorf("cannot allocate this order to this batch: %s", reason)
+	if err = batch.Allocate(orderLine); err != nil {
+		return fmt.Errorf("cannot allocate this order to this batch: %s", err)
 	}
 
 	if _, err := s.db.Exec(insertBatchOrderLineRow, batch.Reference, orderLine.OrderID); err != nil {
+		return fmt.Errorf("failed to store allocation to db: %s", err)
+	}
+
+	return nil
+}
+
+func (s *SQLRepository) DeallocateFomBatch(batch domain.Batch, orderLine domain.OrderLine) error {
+	batch, err := s.GetBatch(batch.Reference)
+	if err != nil {
+		return fmt.Errorf("could not find batch: %s", err)
+	}
+
+	batch.Deallocate(orderLine)
+
+	deleteQuery := fmt.Sprintf("DELETE FROM batches_order_lines WHERE batch_id=%q AND order_id=%q", batch.Reference, orderLine.OrderID)
+	if _, err := s.db.Exec(deleteQuery); err != nil {
 		return fmt.Errorf("failed to store allocation to db: %s", err)
 	}
 

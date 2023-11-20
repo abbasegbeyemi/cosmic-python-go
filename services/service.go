@@ -3,14 +3,17 @@ package services
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/abbasegbeyemi/cosmic-python-go/domain"
 )
 
 type Repository interface {
+	AddBatch(domain.Batch) error
 	ListBatches() ([]domain.Batch, error)
 	GetBatch(reference domain.Reference) (domain.Batch, error)
 	AllocateToBatch(domain.Batch, domain.OrderLine) error
+	DeallocateFromBatch(domain.Batch, domain.OrderLine) error
 	AddOrderLine(domain.OrderLine) error
 }
 
@@ -22,6 +25,9 @@ func NewStockService(repo Repository) StockService {
 	return StockService{
 		repo: repo,
 	}
+}
+func (s *StockService) AddBatch(reference domain.Reference, sku domain.Sku, quantity int, eta time.Time) error {
+	return s.repo.AddBatch(domain.NewBatch(reference, sku, quantity, eta))
 }
 
 func (s *StockService) Allocate(orderLine domain.OrderLine) (domain.Reference, error) {
@@ -55,6 +61,10 @@ func (s *StockService) Allocate(orderLine domain.OrderLine) (domain.Reference, e
 		return "", fmt.Errorf("could not persist order line allocation")
 	}
 	return batchRef, nil
+}
+
+func (s *StockService) Deallocate(batch domain.Batch, orderLine domain.OrderLine) error {
+	return s.repo.DeallocateFromBatch(batch, orderLine)
 }
 
 type InvalidSkuError struct {

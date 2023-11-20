@@ -274,3 +274,51 @@ func TestSQLRepository_AllocateToBatch(t *testing.T) {
 
 	assert.EqualExportedValues(t, allocatedBatch.Allocations.ToSlice()[0], orderLine)
 }
+
+func TestSQLRepository_DeallocateFromBatch(t *testing.T) {
+	db, err := sql.Open("sqlite3", testDBFile)
+	assert.Nil(t, err)
+
+	createTables(t, db)
+	defer truncateTables(t, db)
+
+	repo := SQLRepository{
+		db: &DBWrapper{db},
+	}
+
+	sku := "LARGE-TABLE"
+
+	batch := domain.Batch{
+		Reference: "batch-012",
+		Sku:       domain.Sku(sku),
+		Quantity:  40,
+	}
+
+	orderLine := domain.OrderLine{
+		OrderID:  "order-321",
+		Quantity: 12,
+		Sku:      domain.Sku(sku),
+	}
+
+	err = repo.AddBatch(batch)
+	assert.Nil(t, err)
+
+	err = repo.AddOrderLine(orderLine)
+	assert.Nil(t, err)
+
+	err = repo.AllocateToBatch(batch, orderLine)
+	assert.Nil(t, err)
+
+	allocatedBatch, err := repo.GetBatch(batch.Reference)
+	assert.Nil(t, err)
+
+	assert.EqualExportedValues(t, allocatedBatch.Allocations.ToSlice()[0], orderLine)
+
+	err = repo.DeallocateFomBatch(allocatedBatch, orderLine)
+	assert.Nil(t, err)
+
+	deallocatedBatch, err := repo.GetBatch(batch.Reference)
+	assert.Nil(t, err)
+
+	assert.Len(t, deallocatedBatch.Allocations.ToSlice(), 0)
+}
