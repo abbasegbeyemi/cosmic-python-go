@@ -314,7 +314,7 @@ func TestSQLRepository_DeallocateFromBatch(t *testing.T) {
 
 	assert.EqualExportedValues(t, allocatedBatch.Allocations.ToSlice()[0], orderLine)
 
-	err = repo.DeallocateFomBatch(allocatedBatch, orderLine)
+	err = repo.DeallocateFromBatch(allocatedBatch, orderLine)
 	assert.Nil(t, err)
 
 	deallocatedBatch, err := repo.GetBatch(batch.Reference)

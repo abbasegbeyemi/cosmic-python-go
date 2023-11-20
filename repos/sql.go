@@ -170,7 +170,7 @@ func (s *SQLRepository) AllocateToBatch(batch domain.Batch, orderLine domain.Ord
 	return nil
 }
 
-func (s *SQLRepository) DeallocateFomBatch(batch domain.Batch, orderLine domain.OrderLine) error {
+func (s *SQLRepository) DeallocateFromBatch(batch domain.Batch, orderLine domain.OrderLine) error {
 	batch, err := s.GetBatch(batch.Reference)
 	if err != nil {
 		return fmt.Errorf("could not find batch: %s", err)
