@@ -49,7 +49,6 @@ func (f *FakeRepository) AllocateToBatch(batch domain.Batch, orderLine domain.Or
 }
 
 func (f *FakeRepository) DeallocateFromBatch(batch domain.Batch, orderLine domain.OrderLine) error {
-
 	allocatedOrderLines := f.BatchAllocations[batch.Reference]
 
 	batch.Deallocate(orderLine)
@@ -68,6 +67,7 @@ func (f *FakeRepository) DeallocateFromBatch(batch domain.Batch, orderLine domai
 	return nil
 }
 
+// Construct a FakeRepository
 func NewFakeRepository(options ...func(*FakeRepository)) *FakeRepository {
 	repo := &FakeRepository{
 		BatchAllocations: make(map[domain.Reference][]domain.OrderLine),
@@ -78,12 +78,14 @@ func NewFakeRepository(options ...func(*FakeRepository)) *FakeRepository {
 	return repo
 }
 
+// Populate a FakeRepository with a batch
 func WithBatch(ref domain.Reference, sku domain.Sku, quantity int, eta time.Time) func(*FakeRepository) {
 	return func(f *FakeRepository) {
 		f.Batches = append(f.Batches, domain.NewBatch(ref, sku, quantity, eta))
 	}
 }
 
+// Populate a fake repository with an order line
 func WithOrderLine(orderId domain.Reference, sku domain.Sku, quantity int) func(*FakeRepository) {
 	return func(f *FakeRepository) {
 		f.OrderLines = append(f.OrderLines, domain.OrderLine{OrderID: orderId, Sku: sku, Quantity: quantity})

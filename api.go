@@ -25,7 +25,7 @@ func (s *Server) AllocationsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, `{"message": %q}`, err)
+		fmt.Fprint(w, `{"message": "could not decode request data"}`)
 		return
 	}
 
@@ -48,13 +48,13 @@ func (s *Server) StocksHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, `{"message": %q}`, err)
+		fmt.Fprint(w, `{"message": "could not decode request data"}`)
 		return
 	}
 
 	if err = s.service.AddBatch(batch.Reference, batch.Sku, batch.Quantity, batch.ETA); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, `{"message": %q}`, err)
+		fmt.Fprint(w, `{"message": "could not add batch"}`)
 		return
 	}
 
