@@ -3,6 +3,7 @@ package repos
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/abbasegbeyemi/cosmic-python-go/domain"
 )
@@ -67,8 +68,24 @@ func (f *FakeRepository) DeallocateFromBatch(batch domain.Batch, orderLine domai
 	return nil
 }
 
-func NewFakeRepository() *FakeRepository {
-	return &FakeRepository{
+func NewFakeRepository(options ...func(*FakeRepository)) *FakeRepository {
+	repo := &FakeRepository{
 		BatchAllocations: make(map[domain.Reference][]domain.OrderLine),
+	}
+	for _, o := range options {
+		o(repo)
+	}
+	return repo
+}
+
+func WithBatch(ref domain.Reference, sku domain.Sku, quantity int, eta time.Time) func(*FakeRepository) {
+	return func(f *FakeRepository) {
+		f.Batches = append(f.Batches, domain.NewBatch(ref, sku, quantity, eta))
+	}
+}
+
+func WithOrderLine(orderId domain.Reference, sku domain.Sku, quantity int) func(*FakeRepository) {
+	return func(f *FakeRepository) {
+		f.OrderLines = append(f.OrderLines, domain.OrderLine{OrderID: orderId, Sku: sku, Quantity: quantity})
 	}
 }

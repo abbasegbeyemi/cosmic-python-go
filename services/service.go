@@ -30,11 +30,17 @@ func (s *StockService) AddBatch(reference domain.Reference, sku domain.Sku, quan
 	return s.repo.AddBatch(domain.NewBatch(reference, sku, quantity, eta))
 }
 
-func (s *StockService) Allocate(orderLine domain.OrderLine) (domain.Reference, error) {
+func (s *StockService) Allocate(orderId domain.Reference, sku domain.Sku, quantity int) (domain.Reference, error) {
 	batches, err := s.repo.ListBatches()
 
 	if err != nil {
 		return "", fmt.Errorf("could not list batches: %w", err)
+	}
+
+	orderLine := domain.OrderLine{
+		OrderID:  orderId,
+		Sku:      sku,
+		Quantity: quantity,
 	}
 
 	if !s.isValidSku(orderLine.Sku, batches) {

@@ -9,7 +9,7 @@ import (
 )
 
 type service interface {
-	Allocate(orderLine domain.OrderLine) (domain.Reference, error)
+	Allocate(orderId domain.Reference, sku domain.Sku, quantity int) (domain.Reference, error)
 }
 
 type Server struct {
@@ -27,7 +27,7 @@ func (s *Server) AllocationsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	batchRef, err := s.service.Allocate(orderLine)
+	batchRef, err := s.service.Allocate(orderLine.OrderID, orderLine.Sku, orderLine.Quantity)
 
 	if err != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)

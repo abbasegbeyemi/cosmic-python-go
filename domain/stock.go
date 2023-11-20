@@ -24,6 +24,7 @@ func NewBatch(reference Reference, sku Sku, Quantity int, eta time.Time) Batch {
 		Reference:   reference,
 		Sku:         sku,
 		Quantity:    Quantity,
+		ETA:         eta,
 		Allocations: mapset.NewSet[OrderLine](),
 	}
 }
