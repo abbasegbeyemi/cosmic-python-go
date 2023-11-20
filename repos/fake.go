@@ -49,10 +49,7 @@ func (f *FakeRepository) AllocateToBatch(batch domain.Batch, orderLine domain.Or
 
 func (f *FakeRepository) DeallocateFromBatch(batch domain.Batch, orderLine domain.OrderLine) error {
 
-	allocatedOrderLines, ok := f.BatchAllocations[batch.Reference]
-	if !ok {
-		return fmt.Errorf("this batch has no allocations")
-	}
+	allocatedOrderLines := f.BatchAllocations[batch.Reference]
 
 	batch.Deallocate(orderLine)
 	orderLineIndex := slices.IndexFunc[[]domain.OrderLine](allocatedOrderLines, func(ol domain.OrderLine) bool {

@@ -78,8 +78,19 @@ func TestService_Deallocate(t *testing.T) {
 		assert.Equal(t, deallocatedBatch.Quantity, deallocatedBatch.AvailableQuantity())
 	})
 
-	t.Run("should decrement the correct batch", func(t *testing.T) {
+	t.Run("should return error when deallocating an unallocated batch", func(t *testing.T) {
+		sku := domain.Sku("DISCONTINUED-LAMP")
 
+		batch := domain.Batch{Reference: "batch-123", Sku: sku, Quantity: 30, ETA: time.Time{}.AddDate(2025, 10, 2)}
+		orderLine := domain.OrderLine{OrderID: "order001", Sku: sku, Quantity: 10}
+
+		repo := repos.NewFakeRepository()
+
+		service := StockService{repo: repo}
+		service.AddBatch(batch.Reference, batch.Sku, batch.Quantity, batch.ETA)
+
+		err := service.Deallocate(batch, orderLine)
+		assert.Error(t, err)
 	})
 }
 

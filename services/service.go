@@ -64,6 +64,13 @@ func (s *StockService) Allocate(orderLine domain.OrderLine) (domain.Reference, e
 }
 
 func (s *StockService) Deallocate(batch domain.Batch, orderLine domain.OrderLine) error {
+	batchEnriched, err := s.repo.GetBatch(batch.Reference)
+	if err != nil {
+		return fmt.Errorf("could not retrieve batch")
+	}
+	if isAllocated := batchEnriched.IsAllocated(orderLine); !isAllocated {
+		return fmt.Errorf("order line is not allocated to this batch")
+	}
 	return s.repo.DeallocateFromBatch(batch, orderLine)
 }
 
