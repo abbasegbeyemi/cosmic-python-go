@@ -69,6 +69,7 @@ func (s *SqliteUnitOfWork) CommitOnSuccess(queryFunction QueryFunc) error {
 	return nil
 }
 
+// Get a transaction from the unit of work
 func (s *SqliteUnitOfWork) Transaction() (*sql.Tx, error) {
 	tx, err := s.DB.Begin()
 
