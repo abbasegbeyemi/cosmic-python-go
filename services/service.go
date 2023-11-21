@@ -13,7 +13,7 @@ type UnitOfWork interface {
 	Batches() uow.Repository
 	Commit() error
 	Rollback()
-	DBInstruction(uow.QueryFunc) error
+	CommitOnSuccess(uow.QueryFunc) error
 }
 
 type StockService struct {
@@ -21,7 +21,7 @@ type StockService struct {
 }
 
 func (s *StockService) AddBatch(reference domain.Reference, sku domain.Sku, quantity int, eta time.Time) error {
-	return s.UOW.DBInstruction(func() error {
+	return s.UOW.CommitOnSuccess(func() error {
 		return s.UOW.Batches().AddBatch(domain.NewBatch(reference, sku, quantity, eta))
 	})
 }

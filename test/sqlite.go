@@ -10,6 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type dbTx interface {
+	Exec(string, ...any) (sql.Result, error)
+	Query(string, ...any) (*sql.Rows, error)
+	QueryRow(string, ...any) *sql.Row
+}
+
 // Will return an sqlite db in a temporary file. Asserts that the db is accessible
 func SqliteDB(t *testing.T) *sql.DB {
 	t.Helper()
@@ -76,20 +82,20 @@ func TruncateTables(t *testing.T, db *sql.DB) {
 	}
 }
 
-func InsertBatch(t *testing.T, db *sql.DB, reference domain.Reference, sku domain.Sku, quantity int, eta time.Time) {
+func InsertBatch(t *testing.T, db dbTx, reference domain.Reference, sku domain.Sku, quantity int, eta time.Time) {
 	t.Helper()
 	if _, err := db.Exec(InsertBatchRow, reference, sku, quantity, eta); err != nil {
 		t.Fatalf("could not seed the db with batches: %s", err)
 	}
 }
-func InsertOrderLine(t *testing.T, db *sql.DB, orderId domain.Reference, sku domain.Sku, quantity int) {
+func InsertOrderLine(t *testing.T, db dbTx, orderId domain.Reference, sku domain.Sku, quantity int) {
 	t.Helper()
 	if _, err := db.Exec(InsertOrderLineRow, orderId, sku, quantity); err != nil {
 		t.Fatalf("could not seed the db with order lines: %s", err)
 	}
 }
 
-func InsertAllocation(t *testing.T, db *sql.DB, batchRef, orderId domain.Reference) {
+func InsertAllocation(t *testing.T, db dbTx, batchRef, orderId domain.Reference) {
 	t.Helper()
 	if _, err := db.Exec(InsertBatchOrderLineRow, batchRef, orderId); err != nil {
 		t.Fatalf("could not seed the db with allocations: %s", err)

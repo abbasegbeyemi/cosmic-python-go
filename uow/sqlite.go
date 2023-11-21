@@ -38,22 +38,20 @@ func (s *SqliteUnitOfWork) Batches() Repository {
 	return s.batches
 }
 
-// Will pass a db transaction to the provided function and perform the db queries within.
-// Provided function must return error status. Commits if no error and rolls back if error.
-func (s *SqliteUnitOfWork) DBInstruction(queryFunction QueryFunc) error {
-	tx, err := s.DB.Begin()
-
+// Will create a transaction and commit only if the provided query function raises no error.
+func (s *SqliteUnitOfWork) CommitOnSuccess(queryFunction QueryFunc) error {
+	tx, err := s.Transaction()
 	if err != nil {
-		return fmt.Errorf("unable to begin db transaction")
+		return fmt.Errorf("could not initialise db transaction: %w", err)
 	}
-	s.batches, err = repos.NewSqliteRepository(repos.WithDBTransaction(tx))
+
+	repo, err := repos.NewSqliteRepository(repos.WithDBTransaction(tx))
+	s.batches = repo
 
 	// Reset batches repo back to standard db query
 	defer func() {
 		s.batches, _ = repos.NewSqliteRepository(repos.WithDBTransaction(s.DB))
 	}()
-
-	s.transaction = tx
 
 	if err != nil {
 		return fmt.Errorf("could not get sqlite repository: %w", err)
@@ -69,6 +67,16 @@ func (s *SqliteUnitOfWork) DBInstruction(queryFunction QueryFunc) error {
 	}
 
 	return nil
+}
+
+func (s *SqliteUnitOfWork) Transaction() (*sql.Tx, error) {
+	tx, err := s.DB.Begin()
+
+	if err != nil {
+		return &sql.Tx{}, fmt.Errorf("unable to begin db transaction")
+	}
+	s.transaction = tx
+	return tx, nil
 }
 
 func (s *SqliteUnitOfWork) Commit() error {

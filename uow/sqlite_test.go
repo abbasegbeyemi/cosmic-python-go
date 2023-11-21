@@ -2,6 +2,7 @@ package uow
 
 import (
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
@@ -36,7 +37,7 @@ func TestUOW_Allocate(t *testing.T) {
 		uow, err := NewSqliteUnitOfWork(db)
 		assert.NoError(t, err)
 
-		err = uow.DBInstruction(func() error {
+		err = uow.CommitOnSuccess(func() error {
 			batch, err := uow.Batches().GetBatch("batch-001")
 			if err != nil {
 				return err
@@ -59,4 +60,40 @@ func TestUOW_Allocate(t *testing.T) {
 		batchRef := GetAllocatedBatchRef(t, db, "order-1", sku)
 		assert.Equal(t, domain.Reference("batch-001"), batchRef)
 	})
+}
+
+func TestUOW_Commit(t *testing.T) {
+
+	t.Run("rolls back uncommitted work by default", func(t *testing.T) {
+		db := test.SqliteDB(t)
+		test.CreateTables(t, db)
+		uow, err := NewSqliteUnitOfWork(db)
+		assert.NoError(t, err)
+
+		tx, err := uow.Transaction()
+		assert.NoError(t, err)
+
+		test.InsertBatch(t, tx, "batch-001", "LARGE-CHAIR", 100, time.Time{})
+
+		var rowCount int
+		assert.NoError(t, db.QueryRow("SELECT COUNT(*) FROM batches").Scan(&rowCount))
+		assert.Equal(t, 0, rowCount)
+	})
+
+	t.Run("rolls back on error", func(t *testing.T) {
+		db := test.SqliteDB(t)
+		test.CreateTables(t, db)
+		uow, err := NewSqliteUnitOfWork(db)
+		assert.NoError(t, err)
+
+		uow.CommitOnSuccess(func() error {
+			test.InsertBatch(t, uow.transaction, "batch-002", "LARGE-FORK", 100, time.Time{})
+			return fmt.Errorf("an error occurred!")
+		})
+		var rowCount int
+		assert.NoError(t, db.QueryRow("SELECT COUNT(*) FROM batches").Scan(&rowCount))
+		assert.Equal(t, 0, rowCount)
+
+	})
+
 }

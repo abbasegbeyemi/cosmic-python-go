@@ -22,7 +22,7 @@ func (f *FakeUnitOfWork) Batches() Repository {
 	return f.batches
 }
 
-func (f *FakeUnitOfWork) DBInstruction(queryFunction QueryFunc) error {
+func (f *FakeUnitOfWork) CommitOnSuccess(queryFunction QueryFunc) error {
 	if err := queryFunction(); err != nil {
 		return err
 	}
