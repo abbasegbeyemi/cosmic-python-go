@@ -38,17 +38,17 @@ func TestUOW_Allocate(t *testing.T) {
 		assert.NoError(t, err)
 
 		err = uow.CommitOnSuccess(func() error {
-			batch, err := uow.Batches().GetBatch("batch-001")
+			batch, err := uow.Products().GetBatch("batch-001")
 			if err != nil {
 				return err
 			}
 
 			line := domain.OrderLine{OrderID: "order-1", Sku: sku, Quantity: 10}
-			if err = uow.Batches().AddOrderLine(line); err != nil {
+			if err = uow.Products().AddOrderLine(line); err != nil {
 				return err
 			}
 
-			if err = uow.Batches().AllocateToBatch(batch, line); err != nil {
+			if err = uow.Products().AllocateToBatch(batch, line); err != nil {
 				return err
 			}
 

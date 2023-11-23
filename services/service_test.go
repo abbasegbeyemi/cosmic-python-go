@@ -15,12 +15,12 @@ func TestService_Allocate(t *testing.T) {
 		batchRef := domain.Reference("batch-123")
 		sku := domain.Sku("MASSIVE-LAMP")
 
-		uow := uow.NewFakeUnitOfWork(repos.NewFakeRepository())
+		uow := uow.NewFakeUnitOfWork(repos.NewFakeProductsRepository())
 		service := StockService{
 			UOW: uow,
 		}
 
-		service.AddBatch(batchRef, sku, 100, time.Time{})
+		assert.NoError(t, service.AddBatch(batchRef, sku, 100, time.Time{}))
 		allocatedBatchRef, err := service.Allocate("order-1", sku, 12)
 
 		assert.NoError(t, err)
@@ -30,7 +30,7 @@ func TestService_Allocate(t *testing.T) {
 	t.Run("returns error for an invalid sku", func(t *testing.T) {
 		invalidSku := domain.Sku("INVALID-SKU")
 
-		uow := uow.NewFakeUnitOfWork(repos.NewFakeRepository(
+		uow := uow.NewFakeUnitOfWork(repos.NewFakeProductsRepository(
 			repos.WithBatch("batch-002", "VALID-SKU", 100, time.Time{}),
 		))
 
@@ -38,7 +38,7 @@ func TestService_Allocate(t *testing.T) {
 			UOW: uow,
 		}
 		_, err := service.Allocate("order-1", invalidSku, 12)
-		assert.ErrorIs(t, err, InvalidSkuError{sku: invalidSku})
+		assert.ErrorIs(t, err, InvalidSkuError{Sku: invalidSku})
 	})
 
 	t.Run("allocate prefers warehouse batches to shipments", func(t *testing.T) {
@@ -47,9 +47,10 @@ func TestService_Allocate(t *testing.T) {
 		shipmentBatchRef := domain.Reference("shipment-batch-001")
 		sku := domain.Sku("RETRO-CLOCK")
 
-		uow := uow.NewFakeUnitOfWork(repos.NewFakeRepository(
+		uow := uow.NewFakeUnitOfWork(repos.NewFakeProductsRepository(
 			repos.WithBatch(inStockBatchRef, sku, 100, time.Time{}),
 			repos.WithBatch(shipmentBatchRef, sku, 100, time.Time{}.AddDate(0, 4, 1)),
+			repos.WithProduct(sku),
 		))
 
 		service := StockService{
@@ -57,10 +58,10 @@ func TestService_Allocate(t *testing.T) {
 		}
 
 		_, err := service.Allocate("order-002", "RETRO-CLOCK", 10)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
-		inStockBatch, _ := uow.Batches().GetBatch(inStockBatchRef)
-		shipmentBatch, _ := uow.Batches().GetBatch(shipmentBatchRef)
+		inStockBatch, _ := uow.Products().GetBatch(inStockBatchRef)
+		shipmentBatch, _ := uow.Products().GetBatch(shipmentBatchRef)
 
 		assert.Equal(t, 90, inStockBatch.AvailableQuantity())
 		assert.Equal(t, 100, shipmentBatch.AvailableQuantity())
@@ -74,7 +75,7 @@ func TestService_Deallocate(t *testing.T) {
 		allocatedBatch := domain.Batch{Reference: "batch-123", Sku: sku, Quantity: 30, ETA: time.Time{}.AddDate(2025, 10, 2)}
 		allocatedOrderLine := domain.OrderLine{OrderID: "order001", Sku: sku, Quantity: 10}
 
-		uow := uow.NewFakeUnitOfWork(repos.NewFakeRepository())
+		uow := uow.NewFakeUnitOfWork(repos.NewFakeProductsRepository())
 
 		service := StockService{
 			UOW: uow,
@@ -85,7 +86,7 @@ func TestService_Deallocate(t *testing.T) {
 		batchRef, err := service.Allocate(allocatedOrderLine.OrderID, allocatedBatch.Sku, allocatedOrderLine.Quantity)
 		assert.Nil(t, err)
 
-		batch, err := service.UOW.Batches().GetBatch(batchRef)
+		batch, err := service.UOW.Products().GetBatch(batchRef)
 		assert.Nil(t, err)
 
 		assert.Equal(t, (allocatedBatch.Quantity - allocatedOrderLine.Quantity), batch.AvailableQuantity())
@@ -93,7 +94,7 @@ func TestService_Deallocate(t *testing.T) {
 		err = service.Deallocate(batch, allocatedOrderLine)
 		assert.Nil(t, err)
 
-		deallocatedBatch, err := service.UOW.Batches().GetBatch(batchRef)
+		deallocatedBatch, err := service.UOW.Products().GetBatch(batchRef)
 		assert.Nil(t, err)
 
 		assert.Equal(t, deallocatedBatch.Quantity, deallocatedBatch.AvailableQuantity())
@@ -105,7 +106,7 @@ func TestService_Deallocate(t *testing.T) {
 		batch := domain.Batch{Reference: "batch-123", Sku: sku, Quantity: 30, ETA: time.Time{}.AddDate(2025, 10, 2)}
 		orderLine := domain.OrderLine{OrderID: "order001", Sku: sku, Quantity: 10}
 
-		uow := uow.NewFakeUnitOfWork(repos.NewFakeRepository())
+		uow := uow.NewFakeUnitOfWork(repos.NewFakeProductsRepository())
 
 		service := StockService{
 			UOW: uow,
@@ -118,7 +119,7 @@ func TestService_Deallocate(t *testing.T) {
 }
 
 func TestService_AddBatch(t *testing.T) {
-	uow := uow.NewFakeUnitOfWork(repos.NewFakeRepository())
+	uow := uow.NewFakeUnitOfWork(repos.NewFakeProductsRepository())
 
 	service := StockService{
 		UOW: uow,
@@ -126,7 +127,7 @@ func TestService_AddBatch(t *testing.T) {
 
 	assert.NoError(t, service.AddBatch("batch-001", "CRUNCHY-NUT", 40, time.Time{}))
 
-	_, err := uow.Batches().GetBatch("batch-001")
+	_, err := uow.Products().GetBatch("batch-001")
 	assert.NoError(t, err)
 
 	assert.True(t, uow.Committed)

@@ -2,14 +2,10 @@ package domain
 
 import (
 	"fmt"
-	"slices"
 	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
 )
-
-type Sku string
-type Reference string
 
 type Batch struct {
 	Reference   Reference
@@ -27,12 +23,6 @@ func NewBatch(reference Reference, sku Sku, Quantity int, eta time.Time) Batch {
 		ETA:         eta,
 		Allocations: mapset.NewSet[OrderLine](),
 	}
-}
-
-type OrderLine struct {
-	OrderID  Reference
-	Sku      Sku
-	Quantity int
 }
 
 // Allocate allocates an order line to a batch
@@ -85,26 +75,4 @@ func (b *Batch) AllocatedQuantity() int {
 // IsAllocated checks if an order line has been allocated to the batch
 func (b *Batch) IsAllocated(orderLine OrderLine) bool {
 	return b.Allocations.Contains(orderLine)
-}
-
-func Allocate(orderLine OrderLine, batches []Batch) (Reference, error) {
-	slices.SortFunc[[]Batch](batches, func(aBatch, bBatch Batch) int {
-		return aBatch.ETA.Compare(bBatch.ETA)
-	})
-	var batchCheckError error
-	for _, batch := range batches {
-		batchCheckError = batch.Allocate(orderLine)
-		if batchCheckError == nil {
-			return batch.Reference, nil
-		}
-	}
-	return "", OutOfStockError{orderLine.Sku}
-}
-
-type OutOfStockError struct {
-	sku Sku
-}
-
-func (o OutOfStockError) Error() string {
-	return fmt.Sprintf("%s is out of stock", o.sku)
 }

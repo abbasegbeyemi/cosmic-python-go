@@ -12,5 +12,8 @@
         "mattn",
         "stretchr"
     ],
-    "cSpell.language": "en,en-GB"
+    "cSpell.language": "en,en-GB",
+    "cSpell.ignoreWords": [
+        "apperrors"
+    ]
 }

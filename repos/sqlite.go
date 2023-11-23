@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/abbasegbeyemi/cosmic-python-go/apperrors"
 	"github.com/abbasegbeyemi/cosmic-python-go/domain"
 	mapset "github.com/deckarep/golang-set/v2"
 	_ "github.com/mattn/go-sqlite3"
@@ -15,7 +16,7 @@ type dbTx interface {
 	QueryRow(string, ...any) *sql.Row
 }
 
-type SqliteRepository struct {
+type SqliteProductsRepository struct {
 	db dbTx
 }
 
@@ -23,26 +24,25 @@ const insertBatchRow string = `INSERT INTO batches VALUES(?,?,?,?)`
 const insertOrderLineRow string = `INSERT INTO order_lines VALUES (?,?,?)`
 const insertBatchOrderLineRow string = `INSERT INTO batches_order_lines VALUES (?,?)`
 const selectBatchRow string = `SELECT reference, sku, quantity, eta FROM "batches" WHERE reference=?`
-const selectAllBatches string = `SELECT * FROM batches`
 const selectBatchAllocations string = `SELECT * FROM batches_order_lines WHERE batch_id=?`
 const selectOrderLineRow string = `SELECT * FROM order_lines WHERE order_id=?`
 
-type option func() (func(*SqliteRepository), error)
+type option func() (func(*SqliteProductsRepository), error)
 
-func success(opt func(*SqliteRepository)) option {
-	return func() (func(*SqliteRepository), error) {
+func success(opt func(*SqliteProductsRepository)) option {
+	return func() (func(*SqliteProductsRepository), error) {
 		return opt, nil
 	}
 }
 
 func failure(err error) option {
-	return func() (func(*SqliteRepository), error) {
+	return func() (func(*SqliteProductsRepository), error) {
 		return nil, err
 	}
 }
 
-func NewSqliteRepository(options ...option) (*SqliteRepository, error) {
-	repo := &SqliteRepository{}
+func NewSqliteRepository(options ...option) (*SqliteProductsRepository, error) {
+	repo := &SqliteProductsRepository{}
 	for _, option := range options {
 		opt, err := option()
 		if err != nil {
@@ -61,19 +61,34 @@ func WithDBFile(filepath string) option {
 		return failure(fmt.Errorf("could not open sqlite filepath: %w", err))
 	}
 
-	return success(func(r *SqliteRepository) {
-		r.db = db
+	return success(func(s *SqliteProductsRepository) {
+		s.db = db
 	})
 }
 
 // Uses the provided transaction
 func WithDBTransaction(dbTransaction dbTx) option {
-	return success(func(r *SqliteRepository) {
-		r.db = dbTransaction
+	return success(func(s *SqliteProductsRepository) {
+		s.db = dbTransaction
 	})
 }
 
-func (s *SqliteRepository) AddBatch(batch domain.Batch) error {
+func (s *SqliteProductsRepository) Add(product domain.Product) error {
+	return nil
+}
+
+func (s *SqliteProductsRepository) Get(sku domain.Sku) (domain.Product, error) {
+	productBatches, err := s.ListBatches(sku)
+	if len(productBatches) == 0 {
+		return domain.Product{}, apperrors.NonExistentProductError{Sku: sku}
+	}
+	if err != nil {
+		return domain.Product{}, fmt.Errorf("could not get batches for product")
+	}
+	return domain.Product{Sku: sku, Batches: productBatches}, nil
+}
+
+func (s *SqliteProductsRepository) AddBatch(batch domain.Batch) error {
 	if _, err := s.db.Exec(insertBatchRow, batch.Reference, batch.Sku, batch.Quantity, batch.ETA); err != nil {
 		return fmt.Errorf("could not add persist batch to db: %w", err)
 	}
@@ -81,7 +96,7 @@ func (s *SqliteRepository) AddBatch(batch domain.Batch) error {
 	return nil
 }
 
-func (s *SqliteRepository) AddOrderLine(orderLine domain.OrderLine) error {
+func (s *SqliteProductsRepository) AddOrderLine(orderLine domain.OrderLine) error {
 	if _, err := s.db.Exec(insertOrderLineRow, orderLine.OrderID, orderLine.Sku, orderLine.Quantity); err != nil {
 		return fmt.Errorf("could not add persist batch to db: %w", err)
 	}
@@ -89,7 +104,7 @@ func (s *SqliteRepository) AddOrderLine(orderLine domain.OrderLine) error {
 	return nil
 }
 
-func (s *SqliteRepository) GetBatch(reference domain.Reference) (domain.Batch, error) {
+func (s *SqliteProductsRepository) GetBatch(reference domain.Reference) (domain.Batch, error) {
 	batch := domain.Batch{
 		Allocations: mapset.NewSet[domain.OrderLine](),
 	}
@@ -103,7 +118,7 @@ func (s *SqliteRepository) GetBatch(reference domain.Reference) (domain.Batch, e
 	return s.enrichAllocations(batch)
 }
 
-func (s *SqliteRepository) enrichAllocations(batch domain.Batch) (domain.Batch, error) {
+func (s *SqliteProductsRepository) enrichAllocations(batch domain.Batch) (domain.Batch, error) {
 	allocationsRows, err := s.db.Query(selectBatchAllocations, batch.Reference)
 
 	if err != nil {
@@ -132,10 +147,10 @@ func (s *SqliteRepository) enrichAllocations(batch domain.Batch) (domain.Batch, 
 	return batch, nil
 }
 
-func (s *SqliteRepository) ListBatches() ([]domain.Batch, error) {
+func (s *SqliteProductsRepository) ListBatches(sku domain.Sku) ([]domain.Batch, error) {
 	var batchList []domain.Batch
 
-	batchRows, err := s.db.Query(selectAllBatches)
+	batchRows, err := s.db.Query(`SELECT * FROM batches WHERE sku=?`, sku)
 
 	if err != nil {
 		return batchList, fmt.Errorf("could not get batches: %w", err)
@@ -162,7 +177,7 @@ func (s *SqliteRepository) ListBatches() ([]domain.Batch, error) {
 	return batchList, nil
 }
 
-func (s *SqliteRepository) AllocateToBatch(batch domain.Batch, orderLine domain.OrderLine) error {
+func (s *SqliteProductsRepository) AllocateToBatch(batch domain.Batch, orderLine domain.OrderLine) error {
 	batch, err := s.GetBatch(batch.Reference)
 	if err != nil {
 		return fmt.Errorf("could not find batch: %s", err)
@@ -179,7 +194,7 @@ func (s *SqliteRepository) AllocateToBatch(batch domain.Batch, orderLine domain.
 	return nil
 }
 
-func (s *SqliteRepository) DeallocateFromBatch(batch domain.Batch, orderLine domain.OrderLine) error {
+func (s *SqliteProductsRepository) DeallocateFromBatch(batch domain.Batch, orderLine domain.OrderLine) error {
 	batch, err := s.GetBatch(batch.Reference)
 	if err != nil {
 		return fmt.Errorf("could not find batch: %s", err)

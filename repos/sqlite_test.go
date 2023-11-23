@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSqliteRepository_AddBatch(t *testing.T) {
+func TestSqliteProductsRepository_AddBatch(t *testing.T) {
 	db := test.SqliteDB(t)
 	test.CreateTables(t, db)
 	defer test.TruncateTables(t, db)
@@ -25,7 +25,7 @@ func TestSqliteRepository_AddBatch(t *testing.T) {
 			time.Time{},
 		)
 
-		repo := SqliteRepository{
+		repo := SqliteProductsRepository{
 			db: db,
 		}
 		err = repo.AddBatch(batch)
@@ -112,7 +112,7 @@ func TestSqliteRepository_ListBatch(t *testing.T) {
 	repo, err := NewSqliteRepository(WithDBTransaction(db))
 	assert.Nil(t, err)
 
-	receivedBatches, err := repo.ListBatches()
+	receivedBatches, err := repo.ListBatches(sku)
 	assert.Nil(t, err)
 
 	assert.Len(t, receivedBatches, 3)

@@ -5,26 +5,61 @@ import (
 	"slices"
 	"time"
 
+	"github.com/abbasegbeyemi/cosmic-python-go/apperrors"
 	"github.com/abbasegbeyemi/cosmic-python-go/domain"
+	mapset "github.com/deckarep/golang-set/v2"
 )
 
-type FakeRepository struct {
-	Batches          []domain.Batch
-	OrderLines       []domain.OrderLine
-	BatchAllocations map[domain.Reference][]domain.OrderLine
+type FakeProductsRepository struct {
+	products         mapset.Set[*domain.Product]
+	batches          []domain.Batch
+	orderLines       []domain.OrderLine
+	batchAllocations map[domain.Reference][]domain.OrderLine
 }
 
-func (f *FakeRepository) AddBatch(batch domain.Batch) error {
-	f.Batches = append(f.Batches, batch)
+func (f *FakeProductsRepository) Get(sku domain.Sku) (domain.Product, error) {
+	for product := range f.products.Iter() {
+		if product.Sku == sku {
+			productPopulated := f.populateBatches(*product)
+			return productPopulated, nil
+		}
+	}
+	return domain.Product{}, apperrors.NonExistentProductError{Sku: sku}
+}
+
+func (f *FakeProductsRepository) populateBatches(product domain.Product) domain.Product {
+	for _, batch := range f.batches {
+		if batch.Sku == product.Sku {
+			product.Batches = append(product.Batches, batch)
+		}
+	}
+	return product
+}
+
+func (f *FakeProductsRepository) Add(product domain.Product) error {
+	if wasAdded := f.products.Add(&product); !wasAdded {
+		return fmt.Errorf("attempted to add a duplicate product")
+	}
 	return nil
 }
 
-func (f *FakeRepository) ListBatches() ([]domain.Batch, error) {
-	return f.Batches, nil
+func (f *FakeProductsRepository) AddBatch(batch domain.Batch) error {
+	f.batches = append(f.batches, batch)
+	return nil
 }
 
-func (f *FakeRepository) GetBatch(reference domain.Reference) (domain.Batch, error) {
-	for _, batch := range f.Batches {
+func (f *FakeProductsRepository) ListBatches(sku domain.Sku) ([]domain.Batch, error) {
+	skuBatches := []domain.Batch{}
+	for _, batch := range f.batches {
+		if batch.Sku == sku {
+			skuBatches = append(skuBatches, batch)
+		}
+	}
+	return skuBatches, nil
+}
+
+func (f *FakeProductsRepository) GetBatch(reference domain.Reference) (domain.Batch, error) {
+	for _, batch := range f.batches {
 		if batch.Reference == reference {
 			return batch, nil
 		}
@@ -32,24 +67,24 @@ func (f *FakeRepository) GetBatch(reference domain.Reference) (domain.Batch, err
 	return domain.Batch{}, fmt.Errorf("could not find requested batch")
 }
 
-func (f *FakeRepository) AddOrderLine(orderLine domain.OrderLine) error {
-	f.OrderLines = append(f.OrderLines, orderLine)
+func (f *FakeProductsRepository) AddOrderLine(orderLine domain.OrderLine) error {
+	f.orderLines = append(f.orderLines, orderLine)
 	return nil
 }
 
-func (f *FakeRepository) AllocateToBatch(batch domain.Batch, orderLine domain.OrderLine) error {
-	_, ok := f.BatchAllocations[batch.Reference]
+func (f *FakeProductsRepository) AllocateToBatch(batch domain.Batch, orderLine domain.OrderLine) error {
+	_, ok := f.batchAllocations[batch.Reference]
 	batch.Allocate(orderLine)
 	if !ok {
-		f.BatchAllocations[batch.Reference] = []domain.OrderLine{orderLine}
+		f.batchAllocations[batch.Reference] = []domain.OrderLine{orderLine}
 		return nil
 	}
-	f.BatchAllocations[batch.Reference] = append(f.BatchAllocations[batch.Reference], orderLine)
+	f.batchAllocations[batch.Reference] = append(f.batchAllocations[batch.Reference], orderLine)
 	return nil
 }
 
-func (f *FakeRepository) DeallocateFromBatch(batch domain.Batch, orderLine domain.OrderLine) error {
-	allocatedOrderLines := f.BatchAllocations[batch.Reference]
+func (f *FakeProductsRepository) DeallocateFromBatch(batch domain.Batch, orderLine domain.OrderLine) error {
+	allocatedOrderLines := f.batchAllocations[batch.Reference]
 
 	batch.Deallocate(orderLine)
 	orderLineIndex := slices.IndexFunc[[]domain.OrderLine](allocatedOrderLines, func(ol domain.OrderLine) bool {
@@ -62,15 +97,16 @@ func (f *FakeRepository) DeallocateFromBatch(batch domain.Batch, orderLine domai
 	allocatedOrderLines[orderLineIndex] = allocatedOrderLines[len(allocatedOrderLines)-1]
 
 	// Use the list of order lines barring the last one
-	f.BatchAllocations[batch.Reference] = allocatedOrderLines[:len(allocatedOrderLines)-1]
+	f.batchAllocations[batch.Reference] = allocatedOrderLines[:len(allocatedOrderLines)-1]
 
 	return nil
 }
 
-// Construct a FakeRepository
-func NewFakeRepository(options ...func(*FakeRepository)) *FakeRepository {
-	repo := &FakeRepository{
-		BatchAllocations: make(map[domain.Reference][]domain.OrderLine),
+// Construct a FakeProductsRepository
+func NewFakeProductsRepository(options ...func(*FakeProductsRepository)) *FakeProductsRepository {
+	repo := &FakeProductsRepository{
+		products:         mapset.NewSet[*domain.Product](),
+		batchAllocations: make(map[domain.Reference][]domain.OrderLine),
 	}
 	for _, o := range options {
 		o(repo)
@@ -78,16 +114,23 @@ func NewFakeRepository(options ...func(*FakeRepository)) *FakeRepository {
 	return repo
 }
 
-// Populate a FakeRepository with a batch
-func WithBatch(ref domain.Reference, sku domain.Sku, quantity int, eta time.Time) func(*FakeRepository) {
-	return func(f *FakeRepository) {
-		f.Batches = append(f.Batches, domain.NewBatch(ref, sku, quantity, eta))
+// Populate a FakeProductsRepository with a batch
+func WithBatch(ref domain.Reference, sku domain.Sku, quantity int, eta time.Time) func(*FakeProductsRepository) {
+	return func(f *FakeProductsRepository) {
+		f.batches = append(f.batches, domain.NewBatch(ref, sku, quantity, eta))
+	}
+}
+
+// Populate with product
+func WithProduct(sku domain.Sku) func(*FakeProductsRepository) {
+	return func(f *FakeProductsRepository) {
+		f.products.Add(&domain.Product{Sku: sku})
 	}
 }
 
 // Populate a fake repository with an order line
-func WithOrderLine(orderId domain.Reference, sku domain.Sku, quantity int) func(*FakeRepository) {
-	return func(f *FakeRepository) {
-		f.OrderLines = append(f.OrderLines, domain.OrderLine{OrderID: orderId, Sku: sku, Quantity: quantity})
+func WithOrderLine(orderId domain.Reference, sku domain.Sku, quantity int) func(*FakeProductsRepository) {
+	return func(f *FakeProductsRepository) {
+		f.orderLines = append(f.orderLines, domain.OrderLine{OrderID: orderId, Sku: sku, Quantity: quantity})
 	}
 }

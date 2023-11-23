@@ -2,15 +2,15 @@ package services
 
 import (
 	"fmt"
-	"slices"
 	"time"
 
+	"github.com/abbasegbeyemi/cosmic-python-go/apperrors"
 	"github.com/abbasegbeyemi/cosmic-python-go/domain"
 	"github.com/abbasegbeyemi/cosmic-python-go/uow"
 )
 
 type UnitOfWork interface {
-	Batches() uow.Repository
+	Products() uow.ProductRepository
 	Commit() error
 	Rollback()
 	CommitOnSuccess(uow.QueryFunc) error
@@ -22,70 +22,67 @@ type StockService struct {
 
 func (s *StockService) AddBatch(reference domain.Reference, sku domain.Sku, quantity int, eta time.Time) error {
 	return s.UOW.CommitOnSuccess(func() error {
-		return s.UOW.Batches().AddBatch(domain.NewBatch(reference, sku, quantity, eta))
+		product, getProductErr := s.UOW.Products().Get(sku)
+		nonExistentProductErr := apperrors.NonExistentProductError{Sku: sku}
+		if getProductErr == nonExistentProductErr {
+			product = domain.Product{Sku: sku}
+			if addProductErr := s.UOW.Products().Add(product); addProductErr != nil {
+				return fmt.Errorf("could not create nonexistent product")
+			}
+		}
+		batch := domain.NewBatch(reference, sku, quantity, eta)
+		if err := s.UOW.Products().AddBatch(batch); err != nil {
+			return fmt.Errorf("could not add batch")
+		}
+		product.Batches = append(product.Batches, batch)
+		return nil
 	})
 }
 
 func (s *StockService) Allocate(orderId domain.Reference, sku domain.Sku, quantity int) (domain.Reference, error) {
-	batches, err := s.UOW.Batches().ListBatches()
+	line := domain.OrderLine{OrderID: orderId, Sku: sku, Quantity: quantity}
+	var batchRef domain.Reference
+	allocateError := s.UOW.CommitOnSuccess(func() error {
+		if err := s.UOW.Products().AddOrderLine(line); err != nil {
+			return fmt.Errorf("could not create order line")
+		}
+		product, getProductError := s.UOW.Products().Get(sku)
+		nonExistentProductErr := apperrors.NonExistentProductError{Sku: sku}
+		if getProductError == nonExistentProductErr {
+			return InvalidSkuError{Sku: sku}
+		}
+		var err error
+		if batchRef, err = product.Allocate(line); err != nil {
+			return fmt.Errorf("could not allocate order to a batch: %w", err)
+		}
+		batchToAllocate, err := s.UOW.Products().GetBatch(batchRef)
+		if err != nil {
+			return fmt.Errorf("could not get batch marked for allocation")
+		}
+		if err = s.UOW.Products().AllocateToBatch(batchToAllocate, line); err != nil {
+			return fmt.Errorf("error completing allocation to batch")
+		}
+		return nil
+	})
+	return batchRef, allocateError
 
-	if err != nil {
-		return "", fmt.Errorf("could not list batches: %w", err)
-	}
-
-	orderLine := domain.OrderLine{
-		OrderID:  orderId,
-		Sku:      sku,
-		Quantity: quantity,
-	}
-
-	if !s.isValidSku(orderLine.Sku, batches) {
-		return "", InvalidSkuError{sku: orderLine.Sku}
-	}
-
-	batchRef, err := domain.Allocate(orderLine, batches)
-
-	if err != nil {
-		return "", fmt.Errorf("could not allocate order line to any batch: %w", err)
-	}
-
-	if err = s.UOW.Batches().AddOrderLine(orderLine); err != nil {
-		return "", fmt.Errorf("could not add order line: %w", err)
-	}
-
-	batchToAllocate, err := s.UOW.Batches().GetBatch(batchRef)
-
-	if err != nil {
-		return "", fmt.Errorf("could not find batch to allocate order line to: %w", err)
-	}
-
-	if err = s.UOW.Batches().AllocateToBatch(batchToAllocate, orderLine); err != nil {
-		return "", fmt.Errorf("could not persist order line allocation")
-	}
-	return batchRef, nil
 }
 
 func (s *StockService) Deallocate(batch domain.Batch, orderLine domain.OrderLine) error {
-	batchEnriched, err := s.UOW.Batches().GetBatch(batch.Reference)
+	batchEnriched, err := s.UOW.Products().GetBatch(batch.Reference)
 	if err != nil {
 		return fmt.Errorf("could not retrieve batch")
 	}
 	if isAllocated := batchEnriched.IsAllocated(orderLine); !isAllocated {
 		return fmt.Errorf("order line is not allocated to this batch")
 	}
-	return s.UOW.Batches().DeallocateFromBatch(batch, orderLine)
+	return s.UOW.Products().DeallocateFromBatch(batch, orderLine)
 }
 
 type InvalidSkuError struct {
-	sku domain.Sku
+	Sku domain.Sku
 }
 
 func (i InvalidSkuError) Error() string {
-	return fmt.Sprintf("%s sku is invalid", i.sku)
-}
-
-func (s StockService) isValidSku(sku domain.Sku, batches []domain.Batch) bool {
-	return slices.ContainsFunc[[]domain.Batch](batches, func(batch domain.Batch) bool {
-		return batch.Sku == sku
-	})
+	return fmt.Sprintf("%s sku is invalid", i.Sku)
 }

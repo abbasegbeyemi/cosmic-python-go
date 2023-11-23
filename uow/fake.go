@@ -1,12 +1,12 @@
 package uow
 
 type FakeUnitOfWork struct {
-	batches   Repository
+	products  ProductRepository
 	Committed bool
 }
 
-func NewFakeUnitOfWork(batches Repository) *FakeUnitOfWork {
-	return &FakeUnitOfWork{batches: batches}
+func NewFakeUnitOfWork(products ProductRepository) *FakeUnitOfWork {
+	return &FakeUnitOfWork{products: products}
 }
 
 func (f *FakeUnitOfWork) Commit() error {
@@ -18,8 +18,8 @@ func (f *FakeUnitOfWork) Rollback() {
 
 }
 
-func (f *FakeUnitOfWork) Batches() Repository {
-	return f.batches
+func (f *FakeUnitOfWork) Products() ProductRepository {
+	return f.products
 }
 
 func (f *FakeUnitOfWork) CommitOnSuccess(queryFunction QueryFunc) error {
