@@ -30,9 +30,10 @@ func TestService_Allocate(t *testing.T) {
 	t.Run("returns error for an invalid sku", func(t *testing.T) {
 		invalidSku := domain.Sku("INVALID-SKU")
 
-		uow := uow.NewFakeUnitOfWork(repos.NewFakeProductsRepository(
+		opts := []repos.FakeProductsRepositoryOptions{
 			repos.WithBatch("batch-002", "VALID-SKU", 100, time.Time{}),
-		))
+		}
+		uow := uow.NewFakeUnitOfWork(repos.NewFakeProductsRepository(opts...))
 
 		service := StockService{
 			UOW: uow,
@@ -47,11 +48,12 @@ func TestService_Allocate(t *testing.T) {
 		shipmentBatchRef := domain.Reference("shipment-batch-001")
 		sku := domain.Sku("RETRO-CLOCK")
 
-		uow := uow.NewFakeUnitOfWork(repos.NewFakeProductsRepository(
+		opts := []repos.FakeProductsRepositoryOptions{
 			repos.WithBatch(inStockBatchRef, sku, 100, time.Time{}),
 			repos.WithBatch(shipmentBatchRef, sku, 100, time.Time{}.AddDate(0, 4, 1)),
 			repos.WithProduct(sku),
-		))
+		}
+		uow := uow.NewFakeUnitOfWork(repos.NewFakeProductsRepository(opts...))
 
 		service := StockService{
 			UOW: uow,

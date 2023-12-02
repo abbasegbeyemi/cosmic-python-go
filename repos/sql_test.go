@@ -1,7 +1,6 @@
 package repos
 
 import (
-	"slices"
 	"testing"
 	"time"
 
@@ -11,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSqliteProductsRepository_AddBatch(t *testing.T) {
+func TestSqlProductsRepository_AddBatch(t *testing.T) {
 	db := test.SqliteDB(t)
 	test.CreateTables(t, db)
-	defer test.TruncateTables(t, db)
+	// defer test.TruncateTables(t, db)
 	t.Run("can store batch", func(t *testing.T) {
 		tx, err := db.Begin()
 		assert.Nil(t, err)
@@ -25,11 +24,11 @@ func TestSqliteProductsRepository_AddBatch(t *testing.T) {
 			time.Time{},
 		)
 
-		repo := SqliteProductsRepository{
+		repo := SQLProductsRepository{
 			db: db,
 		}
 		err = repo.AddBatch(batch)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		err = tx.Commit()
 		assert.Nil(t, err)
@@ -46,7 +45,7 @@ func TestSqliteProductsRepository_AddBatch(t *testing.T) {
 	})
 }
 
-func TestSqliteRepository_GetBatch(t *testing.T) {
+func TestSqlProductsRepository_GetBatch(t *testing.T) {
 	db := test.SqliteDB(t)
 	test.CreateTables(t, db)
 	defer test.TruncateTables(t, db)
@@ -60,8 +59,9 @@ func TestSqliteRepository_GetBatch(t *testing.T) {
 		}
 		db.Exec(insertBatchRow, existingBatch.Reference, existingBatch.Sku, existingBatch.Quantity, existingBatch.ETA)
 
-		repo, err := NewSqliteRepository(WithDBTransaction(db))
-		assert.Nil(t, err)
+		repo := SQLProductsRepository{
+			db: db,
+		}
 
 		receivedBatch, err := repo.GetBatch(existingBatch.Reference)
 
@@ -82,125 +82,65 @@ func TestSqliteRepository_GetBatch(t *testing.T) {
 		sku := domain.Sku("LARGE-MIRROR")
 
 		test.InsertBatch(t, db, batchRef, sku, 50, time.Time{})
-		test.InsertOrderLine(t, db, orderId, sku, 3)
-		test.InsertAllocation(t, db, batchRef, orderId)
+		test.InsertAllocation(t, db, batchRef, orderId, sku, 3)
 
-		repo, err := NewSqliteRepository(WithDBTransaction(db))
-		assert.Nil(t, err)
+		repo := SQLProductsRepository{
+			db: db,
+		}
 
 		receivedBatch, err := repo.GetBatch(batchRef)
 
 		assert.Nil(t, err)
 		allocations := receivedBatch.Allocations.ToSlice()
-		assert.Greater(t, len(allocations), 0)
-		assert.Equal(t, allocations[0].OrderID, orderId)
-		assert.Equal(t, allocations[0].Sku, sku)
+		if assert.Greater(t, len(allocations), 0) {
+			assert.Equal(t, allocations[0].OrderID, orderId)
+			assert.Equal(t, allocations[0].Sku, sku)
+		}
 	})
 }
 
-func TestSqliteRepository_ListBatch(t *testing.T) {
+func TestSqlProductsRepository_AllocateToBatch(t *testing.T) {
 	db := test.SqliteDB(t)
 	test.CreateTables(t, db)
 	defer test.TruncateTables(t, db)
 
-	sku := domain.Sku("BIG-STICKER")
-
-	test.InsertBatch(t, db, "batch-007", sku, 50, time.Time{})
-	test.InsertBatch(t, db, "batch-001", sku, 20, time.Time{})
-	test.InsertBatch(t, db, "batch-002", sku, 10, time.Time{})
-
-	repo, err := NewSqliteRepository(WithDBTransaction(db))
-	assert.Nil(t, err)
-
-	receivedBatches, err := repo.ListBatches(sku)
-	assert.Nil(t, err)
-
-	assert.Len(t, receivedBatches, 3)
-
-	assert.True(t, slices.ContainsFunc(receivedBatches, func(b domain.Batch) bool {
-		return b.Reference == domain.Reference("batch-001")
-	}))
-
-	assert.True(t, slices.ContainsFunc(receivedBatches, func(b domain.Batch) bool {
-		return b.Reference == domain.Reference("batch-002")
-	}))
-
-	assert.True(t, slices.ContainsFunc(receivedBatches, func(b domain.Batch) bool {
-		return b.Reference == domain.Reference("batch-007")
-	}))
-
-}
-
-func TestSqliteRepository_AddOrderLine(t *testing.T) {
-	db := test.SqliteDB(t)
-	test.CreateTables(t, db)
-	defer test.TruncateTables(t, db)
-	repo, err := NewSqliteRepository(WithDBTransaction(db))
-	assert.Nil(t, err)
-
-	orderLine := domain.OrderLine{
-		OrderID:  "order-001",
-		Sku:      "LARGE-TABLE",
-		Quantity: 12,
+	repo := SQLProductsRepository{
+		db: db,
 	}
 
-	err = repo.AddOrderLine(orderLine)
-	assert.Nil(t, err)
+	sku := domain.Sku("LARGE-TABLE")
 
-}
+	batch := domain.NewBatch("batch-012", sku, 40, time.Time{})
 
-func TestSqliteRepository_AllocateToBatch(t *testing.T) {
-	db := test.SqliteDB(t)
-	test.CreateTables(t, db)
-	defer test.TruncateTables(t, db)
-
-	repo, err := NewSqliteRepository(WithDBTransaction(db))
-	assert.Nil(t, err)
-
-	sku := "LARGE-TABLE"
-
-	batch := domain.Batch{
-		Reference: "batch-012",
-		Sku:       domain.Sku(sku),
-		Quantity:  40,
-	}
+	err := repo.AddBatch(batch)
+	assert.NoError(t, err)
 
 	orderLine := domain.OrderLine{
 		OrderID:  "order-321",
 		Quantity: 12,
 		Sku:      domain.Sku(sku),
 	}
-
-	err = repo.AddBatch(batch)
-	assert.Nil(t, err)
-
-	err = repo.AddOrderLine(orderLine)
-	assert.Nil(t, err)
-
 	err = repo.AllocateToBatch(batch, orderLine)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	allocatedBatch, err := repo.GetBatch(batch.Reference)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	assert.EqualExportedValues(t, allocatedBatch.Allocations.ToSlice()[0], orderLine)
 }
 
-func TestSqliteRepository_DeallocateFromBatch(t *testing.T) {
+func TestSqlProductsRepository_DeallocateFromBatch(t *testing.T) {
 	db := test.SqliteDB(t)
 	test.CreateTables(t, db)
 	defer test.TruncateTables(t, db)
 
-	repo, err := NewSqliteRepository(WithDBTransaction(db))
-	assert.Nil(t, err)
-
-	sku := "LARGE-TABLE"
-
-	batch := domain.Batch{
-		Reference: "batch-012",
-		Sku:       domain.Sku(sku),
-		Quantity:  40,
+	repo := SQLProductsRepository{
+		db: db,
 	}
+
+	sku := domain.Sku("LARGE-TABLE")
+
+	batch := domain.NewBatch("batch-012", sku, 40, time.Time{})
 
 	orderLine := domain.OrderLine{
 		OrderID:  "order-321",
@@ -208,25 +148,22 @@ func TestSqliteRepository_DeallocateFromBatch(t *testing.T) {
 		Sku:      domain.Sku(sku),
 	}
 
-	err = repo.AddBatch(batch)
-	assert.Nil(t, err)
-
-	err = repo.AddOrderLine(orderLine)
-	assert.Nil(t, err)
+	err := repo.AddBatch(batch)
+	assert.NoError(t, err)
 
 	err = repo.AllocateToBatch(batch, orderLine)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	allocatedBatch, err := repo.GetBatch(batch.Reference)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	assert.EqualExportedValues(t, allocatedBatch.Allocations.ToSlice()[0], orderLine)
 
 	err = repo.DeallocateFromBatch(allocatedBatch, orderLine)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	deallocatedBatch, err := repo.GetBatch(batch.Reference)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	assert.Len(t, deallocatedBatch.Allocations.ToSlice(), 0)
 }

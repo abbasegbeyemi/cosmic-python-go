@@ -16,7 +16,6 @@ type ProductRepository interface {
 	GetBatch(reference domain.Reference) (domain.Batch, error)
 	AllocateToBatch(domain.Batch, domain.OrderLine) error
 	DeallocateFromBatch(domain.Batch, domain.OrderLine) error
-	AddOrderLine(domain.OrderLine) error
 }
 
 type SqliteUnitOfWork struct {

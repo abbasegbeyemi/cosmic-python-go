@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -16,31 +14,8 @@ import (
 	"github.com/abbasegbeyemi/cosmic-python-go/test"
 	"github.com/abbasegbeyemi/cosmic-python-go/uow"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
-
-func randomSku(t *testing.T, prefix string) domain.Sku {
-	t.Helper()
-	var sizes = [5]string{"TINY", "SMALL", "MEDIUM", "LARGE", "MASSIVE"}
-	var products = [5]string{"TABLE", "CHAIR", "LAMP", "BOTTLE", "KEYRING"}
-
-	genSku := fmt.Sprintf("%s-%s", sizes[rand.Intn(5)], products[rand.Intn(5)])
-	if prefix != "" {
-		return domain.Sku(fmt.Sprintf("%s-%s", strings.ToUpper(prefix), genSku))
-	}
-	return domain.Sku(genSku)
-}
-
-func randomBatchRef(t *testing.T, suffix string) domain.Reference {
-	t.Helper()
-	return domain.Reference(fmt.Sprintf("batch-%s-%s", uuid.New(), suffix))
-}
-
-func randomOrderId(t *testing.T, suffix string) domain.Reference {
-	t.Helper()
-	return domain.Reference(fmt.Sprintf("order-%s-%s", uuid.New(), suffix))
-}
 
 func getBatchRef(t *testing.T, response *httptest.ResponseRecorder) string {
 	t.Helper()
@@ -106,15 +81,15 @@ func TestAPI_AllocationsHandler(t *testing.T) {
 			service: &service,
 		}
 
-		sku := randomSku(t, "")
-		otherSku := randomSku(t, "other")
-		earlyBatchRef := randomBatchRef(t, "earlyBatchRef")
+		sku := test.RandomSku(t, "")
+		otherSku := test.RandomSku(t, "other")
+		earlyBatchRef := test.RandomBatchRef(t, "earlyBatchRef")
 
 		postBatchToServer(t, server, earlyBatchRef, sku, 100, time.Time{}.AddDate(2025, 2, 21))
-		postBatchToServer(t, server, randomBatchRef(t, "random"), sku, 100, time.Time{}.AddDate(2025, 4, 22))
-		postBatchToServer(t, server, randomBatchRef(t, "random"), otherSku, 100, time.Time{}.AddDate(2025, 5, 21))
+		postBatchToServer(t, server, test.RandomBatchRef(t, "random"), sku, 100, time.Time{}.AddDate(2025, 4, 22))
+		postBatchToServer(t, server, test.RandomBatchRef(t, "random"), otherSku, 100, time.Time{}.AddDate(2025, 5, 21))
 
-		orderJson := generateOrderLineJson(t, randomOrderId(t, "random"), sku, 10)
+		orderJson := generateOrderLineJson(t, test.RandomOrderId(t, "random"), sku, 10)
 		request, _ := http.NewRequest(http.MethodPost, "/allocate", bytes.NewReader(orderJson))
 		response := httptest.NewRecorder()
 
@@ -127,8 +102,8 @@ func TestAPI_AllocationsHandler(t *testing.T) {
 
 	t.Run("unhappy path returns 400 and error message", func(t *testing.T) {
 
-		unknownSku := randomSku(t, "unknown")
-		orderId := randomOrderId(t, "")
+		unknownSku := test.RandomSku(t, "unknown")
+		orderId := test.RandomOrderId(t, "")
 		order1 := generateOrderLineJson(t, orderId, unknownSku, 10)
 
 		uow, err := uow.NewSqliteUnitOfWork(db)
@@ -142,8 +117,8 @@ func TestAPI_AllocationsHandler(t *testing.T) {
 			service: &service,
 		}
 
-		postBatchToServer(t, server, randomBatchRef(t, ""), randomSku(t, ""), 10, time.Time{}.AddDate(2025, 2, 21))
-		postBatchToServer(t, server, randomBatchRef(t, ""), randomSku(t, ""), 10, time.Time{}.AddDate(2025, 2, 21))
+		postBatchToServer(t, server, test.RandomBatchRef(t, ""), test.RandomSku(t, ""), 10, time.Time{}.AddDate(2025, 2, 21))
+		postBatchToServer(t, server, test.RandomBatchRef(t, ""), test.RandomSku(t, ""), 10, time.Time{}.AddDate(2025, 2, 21))
 
 		request, _ := http.NewRequest(http.MethodPost, "/allocate", bytes.NewReader(order1))
 		response := httptest.NewRecorder()
@@ -175,7 +150,7 @@ func TestAPI_BatchesHandler(t *testing.T) {
 			service: &service,
 		}
 
-		batchJson := generateBatchJson(t, "batch-002", randomSku(t, ""), 100, time.Time{})
+		batchJson := generateBatchJson(t, "batch-002", test.RandomSku(t, ""), 100, time.Time{})
 
 		request, err := http.NewRequest(http.MethodPost, "/batches", bytes.NewReader([]byte(batchJson)))
 		assert.NoError(t, err)

@@ -9,8 +9,9 @@ type Sku string
 type Reference string
 
 type Product struct {
-	Sku     Sku
-	Batches []Batch
+	Sku           Sku
+	Batches       []Batch
+	VersionNumber int
 }
 
 func (p *Product) Allocate(orderLine OrderLine) (Reference, error) {
@@ -20,6 +21,7 @@ func (p *Product) Allocate(orderLine OrderLine) (Reference, error) {
 
 	for _, batch := range p.Batches {
 		if err := batch.Allocate(orderLine); err == nil {
+			p.VersionNumber++
 			return batch.Reference, nil
 		}
 

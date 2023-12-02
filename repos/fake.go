@@ -102,8 +102,10 @@ func (f *FakeProductsRepository) DeallocateFromBatch(batch domain.Batch, orderLi
 	return nil
 }
 
+type FakeProductsRepositoryOptions func(*FakeProductsRepository)
+
 // Construct a FakeProductsRepository
-func NewFakeProductsRepository(options ...func(*FakeProductsRepository)) *FakeProductsRepository {
+func NewFakeProductsRepository(options ...FakeProductsRepositoryOptions) *FakeProductsRepository {
 	repo := &FakeProductsRepository{
 		products:         mapset.NewSet[*domain.Product](),
 		batchAllocations: make(map[domain.Reference][]domain.OrderLine),

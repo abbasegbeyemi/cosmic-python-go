@@ -8,12 +8,16 @@
         "deallocating",
         "deckarep",
         "domainmodelling",
+        "entgo",
+        "enttest",
         "mapset",
         "mattn",
+        "orderline",
         "stretchr"
     ],
     "cSpell.language": "en,en-GB",
     "cSpell.ignoreWords": [
+        "IDEQ",
         "apperrors"
     ]
 }

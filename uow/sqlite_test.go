@@ -12,15 +12,12 @@ import (
 )
 
 // Returns the batch ref to which an order line has been allocated
-func GetAllocatedBatchRef(t *testing.T, db *sql.DB, orderId domain.Reference, sku domain.Sku) domain.Reference {
+func GetAllocatedBatchRef(t *testing.T, db *sql.DB, orderId domain.Reference, sku domain.Sku, quantity int) domain.Reference {
 	t.Helper()
-	var orderLineId string
-	err := db.QueryRow("SELECT order_id from order_lines WHERE order_id=? AND sku=?", orderId, sku).Scan(&orderLineId)
-	assert.Nil(t, err)
-
 	var batchRef string
-	err = db.QueryRow(`SELECT b.reference from batches_order_lines JOIN batches AS b ON batch_id=b.reference WHERE order_id=?`, orderId).Scan(&batchRef)
-	assert.Nil(t, err)
+	if err := db.QueryRow("SELECT reference FROM batches AS b JOIN order_lines AS ol ON b.id=ol.batch_id WHERE ol.order_id=? AND ol.sku=? AND ol.quantity=?", orderId, sku, quantity).Scan(&batchRef); err != nil {
+		t.Fatalf("could not get allocated batch ref: %s:", err)
+	}
 
 	return domain.Reference(batchRef)
 }
@@ -44,9 +41,6 @@ func TestUOW_Allocate(t *testing.T) {
 			}
 
 			line := domain.OrderLine{OrderID: "order-1", Sku: sku, Quantity: 10}
-			if err = uow.Products().AddOrderLine(line); err != nil {
-				return err
-			}
 
 			if err = uow.Products().AllocateToBatch(batch, line); err != nil {
 				return err
@@ -57,7 +51,7 @@ func TestUOW_Allocate(t *testing.T) {
 
 		assert.Nil(t, err)
 
-		batchRef := GetAllocatedBatchRef(t, db, "order-1", sku)
+		batchRef := GetAllocatedBatchRef(t, db, "order-1", sku, 10)
 		assert.Equal(t, domain.Reference("batch-001"), batchRef)
 	})
 }

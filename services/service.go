@@ -43,9 +43,6 @@ func (s *StockService) Allocate(orderId domain.Reference, sku domain.Sku, quanti
 	line := domain.OrderLine{OrderID: orderId, Sku: sku, Quantity: quantity}
 	var batchRef domain.Reference
 	allocateError := s.UOW.CommitOnSuccess(func() error {
-		if err := s.UOW.Products().AddOrderLine(line); err != nil {
-			return fmt.Errorf("could not create order line")
-		}
 		product, getProductError := s.UOW.Products().Get(sku)
 		nonExistentProductErr := apperrors.NonExistentProductError{Sku: sku}
 		if getProductError == nonExistentProductErr {
